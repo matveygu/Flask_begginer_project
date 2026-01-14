@@ -1,4 +1,4 @@
-# SiteProject
+# Flask Project
 
 Простое веб-приложение на **Flask**, сделанное для проверки сил и знакомства с фреймворком.  
 Сайт развернут на PythonAnywhere и доступен по адресу: https://matveygu.pythonanywhere.com/
