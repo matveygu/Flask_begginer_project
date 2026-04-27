@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show *)",
+      "Bash(python -c \"import flask; print\\('flask', flask.__version__\\)\")",
+      "Bash(python -c \"import flask_sqlalchemy; print\\('flask-sqlalchemy', flask_sqlalchemy.__version__\\)\")",
+      "Bash(python -c \"import flask_login; print\\('flask-login', flask_login.__version__\\)\")",
+      "Bash(python -c \"import werkzeug; print\\('werkzeug', werkzeug.__version__\\)\")",
+      "Bash(python -c \"import flask_uploads; print\\('flask-uploads', flask_uploads.__version__\\)\")",
+      "Bash(python -c \"import werkzeug; print\\(werkzeug.__version__\\)\")",
+      "Bash(python -c \"import flask_uploads; print\\(flask_uploads.__version__\\)\")",
+      "Bash(python -c \"from importlib.metadata import version; print\\('werkzeug', version\\('werkzeug'\\)\\); print\\('flask-uploads', version\\('flask-uploads'\\)\\)\")",
+      "Bash(python -c \"from importlib.metadata import version; print\\('werkzeug', version\\('werkzeug'\\)\\)\")",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/pip.exe install *)",
+      "Bash(python -m pip install flask-wtf python-dotenv)",
+      "Bash(python -c \"from flask_wtf.csrf import CSRFProtect; from dotenv import load_dotenv; print\\('OK'\\)\")",
+      "Bash(python -c \"import secrets; print\\(secrets.token_hex\\(32\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from app import app; print\\('OK'\\)\")"
+    ]
+  }
+}

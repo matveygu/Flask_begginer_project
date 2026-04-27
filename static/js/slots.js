@@ -1,158 +1,191 @@
-document.addEventListener('DOMContentLoaded', function() {
-    displayRandomSymbols();
-});
+const SYMBOLS   = ['0_hourglass', '0_telephone', '0_diamond', '0_floppy', '0_seven'];
+const BASE      = '/static/images/slots/';
+const CELL_H    = 80;                          // px — must match CSS .column div height
+const ROWS      = 3;                           // visible rows
+const EXTRAS    = [10, 20, 30, 40, 50];        // items prepended per reel
+const DURATIONS = [1.0, 1.5, 2.0, 2.5, 3.0]; // transition seconds per reel
 
-document.getElementById('spin-button').addEventListener('click', function() {
-    spin();
-});
+let busy = false;
 
-function displayRandomSymbols() {
-    const reels = document.querySelectorAll('.reel');
-    const symbols = ['0_hourglass', '0_telephone', '0_diamond', '0_floppy', '0_seven'];
-
-    reels.forEach(reel => {
-        reel.innerHTML = '';
-        for (let i = 0; i < 3; i++) {
-            const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-            const img = document.createElement('img');
-            img.src = `/static/images/slots/${randomSymbol}.png`;
-            reel.appendChild(img);
-        }
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.column').forEach(function (col) {
+        addItems(col, ROWS);
     });
+    document.getElementById('spin-button').addEventListener('click', spin);
+});
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function randSym() {
+    return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
 }
 
-function spin() {
-    let balance = parseInt(document.getElementById('balance').textContent);
-    const betAmount = parseInt(document.getElementById('bet-amount').value);
+function makeCell(sym) {
+    var d   = document.createElement('div');
+    d.dataset.sym = sym;
+    var img = document.createElement('img');
+    img.src = BASE + sym + '.png';
+    img.alt = sym;
+    d.appendChild(img);
+    return d;
+}
 
-    if (balance < betAmount | 0 >= betAmount) {
-        alert(" Не верная ставка!");
-        return;
+// Prepend n random cells — they appear at visual top, scroll into view
+function addItems(col, n) {
+    for (var i = 0; i < n; i++) {
+        col.prepend(makeCell(randSym()));
+    }
+}
+
+// ── Main spin flow ────────────────────────────────────────────
+
+async function spin() {
+    if (busy) return;
+    busy = true;
+
+    var bet = parseInt(document.getElementById('bet-amount').value);
+    var btn = document.getElementById('spin-button');
+    btn.disabled    = true;
+    btn.textContent = '⏳ Крутим...';
+    clearHighlights();
+
+    var cols = Array.from(document.querySelectorAll('.column'));
+
+    // Prepend random items to each reel, then scroll up with CSS transition
+    cols.forEach(function (col, i) {
+        addItems(col, EXTRAS[i]);
+        var n    = col.querySelectorAll('div').length;
+        var dist = (n - ROWS) * CELL_H;           // how far to scroll
+        col.style.transition = DURATIONS[i] + 's ease-out';
+        col.style.bottom     = '-' + dist + 'px'; // scroll column down = items move up
+    });
+
+    // Wait for the slowest reel to finish
+    await new Promise(function (resolve) {
+        cols[cols.length - 1].addEventListener('transitionend', resolve, { once: true });
+    });
+
+    // Read visible symbols: after scroll, items[0..2] are the ones in view
+    var finalSymbols = cols.map(function (col) {
+        var items = col.querySelectorAll('div');
+        return [
+            items[0].dataset.sym,
+            items[1].dataset.sym,
+            items[2].dataset.sym,
+        ];
+    });
+
+    // Cleanup: remove extra items, snap position back (no animation)
+    cols.forEach(function (col) {
+        Array.from(col.querySelectorAll('div')).slice(ROWS).forEach(function (el) { el.remove(); });
+        col.style.transition = 'none';
+        col.style.bottom     = '0px';
+    });
+
+    // Send landed grid to server
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var data;
+    try {
+        var res = await fetch('/spin', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body:    JSON.stringify({ bet: bet, symbols: finalSymbols }),
+        });
+        data = await res.json();
+    } catch (_) {
+        showErr('Ошибка соединения');
+        reset(btn); return;
     }
 
-    balance -= betAmount;
-    document.getElementById('balance').textContent = balance;
+    if (data.error) { showErr(data.error); reset(btn); return; }
 
-    const reels = document.querySelectorAll('.reel');
-    const symbols = ['0_hourglass', '0_telephone', '0_diamond', '0_floppy', '0_seven'];
-    const spinDuration = 3000; // Длительность вращения в миллисекундах
-    const startTime = Date.now();
+    highlightWins(cols, finalSymbols);
+    document.getElementById('winnings').textContent = data.winnings;
+    document.getElementById('balance').textContent  = data.new_balance;
 
-    // Создаем длинные случайные последовательности символов для каждого столбца
-    const longRandomSequences = Array.from({ length: reels.length }, () => {
-        return Array.from({ length: 50 }, () => symbols[Math.floor(Math.random() * symbols.length)]);
-    });
-
-    const spinInterval = setInterval(() => {
-        const elapsedTime = Date.now() - startTime;
-
-        if (elapsedTime >= spinDuration) {
-            clearInterval(spinInterval);
-
-            // После остановки показываем последние символы из длинной последовательности
-            const result = longRandomSequences.map(sequence => {
-                return sequence.slice(-3); // Берем последние 3 символа
-            });
-
-            displayResult(result);
-            calculateWinnings(result, betAmount);
-        } else {
-            // Показываем вращение с длинной последовательностью
-            reels.forEach((reel, index) => {
-                reel.innerHTML = '';
-                const currentPosition = Math.floor(elapsedTime / 100) % longRandomSequences[index].length;
-
-                for (let i = 0; i < 3; i++) {
-                    const symbolIndex = (currentPosition + i) % longRandomSequences[index].length;
-                    const img = document.createElement('img');
-                    img.src = `/static/images/slots/${longRandomSequences[index][symbolIndex]}.png`;
-                    img.classList.add('spin');
-                    reel.appendChild(img);
-                }
-            });
-        }
-    }, 100);
+    reset(btn);
 }
 
-function displayResult(result) {
-    const reels = document.querySelectorAll('.reel');
-    reels.forEach((reel, i) => {
-        reel.innerHTML = '';
-        result[i].forEach(symbol => {
-            const img = document.createElement('img');
-            img.src = `/static/images/slots/${symbol}.png`;
-            reel.appendChild(img);
-        });
-    });
-}
+// ── Win highlighting ──────────────────────────────────────────
 
-function calculateWinnings(result, betAmount) {
-    let winnings = 0;
+function highlightWins(cols, symbols) {
+    // Collect winning (col, row) pairs — same logic as server
+    var winSet = {};
+    function mark(c, r) { winSet[c + ',' + r] = true; }
 
-    // Проверяем каждую строку
-    for (let row = 0; row < 3; row++) {
-        const symbolsInRow = result.map(reel => reel[row]);
-
-        let currentSymbol = null;
-        let count = 0;
-        let winningIndices = [];
-
-        symbolsInRow.forEach((symbol, index) => {
-            if (symbol === currentSymbol) {
+    // Horizontal: consecutive from left
+    for (var row = 0; row < ROWS; row++) {
+        var count = 1;
+        for (var col = 1; col < 5; col++) {
+            if (symbols[col][row] === symbols[col - 1][row]) {
                 count++;
-                winningIndices.push(index);
             } else {
                 if (count >= 3) {
-                    winningIndices.forEach(col => {
-                        const img = document.querySelectorAll('.reel')[col].querySelectorAll('img')[row];
-                        img.classList.add('win');
-                    });
-                    winnings += betAmount * count;
+                    for (var c = col - count; c < col; c++) mark(c, row);
                 }
-                currentSymbol = symbol;
                 count = 1;
-                winningIndices = [index];
             }
-        });
-
-        // Проверяем последнюю последовательность
+        }
         if (count >= 3) {
-            winningIndices.forEach(col => {
-                const img = document.querySelectorAll('.reel')[col].querySelectorAll('img')[row];
-                img.classList.add('win');
-            });
-            winnings += betAmount * count;
+            for (var c = 5 - count; c < 5; c++) mark(c, row);
         }
     }
 
-    // Делаем проигрышные символы тусклыми
-    document.querySelectorAll('.reel img:not(.win)').forEach(img => {
-        img.classList.add('lose');
+    // Vertical: all 3 same in a column
+    for (var col = 0; col < 5; col++) {
+        if (symbols[col][0] === symbols[col][1] && symbols[col][1] === symbols[col][2]) {
+            mark(col, 0); mark(col, 1); mark(col, 2);
+        }
+    }
+
+    // Diagonal ↘
+    for (var sc = 0; sc < 3; sc++) {
+        if (symbols[sc][0] === symbols[sc + 1][1] && symbols[sc + 1][1] === symbols[sc + 2][2]) {
+            mark(sc, 0); mark(sc + 1, 1); mark(sc + 2, 2);
+        }
+    }
+
+    // Diagonal ↙
+    for (var sc = 2; sc < 5; sc++) {
+        if (symbols[sc][0] === symbols[sc - 1][1] && symbols[sc - 1][1] === symbols[sc - 2][2]) {
+            mark(sc, 0); mark(sc - 1, 1); mark(sc - 2, 2);
+        }
+    }
+
+    var anyWin = Object.keys(winSet).length > 0;
+    if (!anyWin) return;
+
+    cols.forEach(function (col, ci) {
+        col.querySelectorAll('div').forEach(function (cell, ri) {
+            if (winSet[ci + ',' + ri]) {
+                cell.classList.add('win');
+            } else {
+                cell.classList.add('lose');
+            }
+        });
     });
-
-    document.getElementById('winnings').textContent = winnings;
-    let balance = parseInt(document.getElementById('balance').textContent);
-    balance += winnings;
-    document.getElementById('balance').textContent = balance;
-
-    // Обновление данных пользователя в базе данных
-    updateUserBalance(balance);
 }
 
-function updateUserBalance(newBalance) {
-    // Здесь должна быть логика для обновления баланса пользователя в базе данных
-    fetch('/check_win', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ balance: newBalance }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Success:', data);
-    })
-    .catch((error) => {
-        console.error('Error:', error);
+// ── Utility ───────────────────────────────────────────────────
+
+function clearHighlights() {
+    document.querySelectorAll('.column div').forEach(function (cell) {
+        cell.classList.remove('win', 'lose');
     });
+    var w = document.getElementById('winnings');
+    w.textContent = '0';
+    w.style.color = '';
+}
+
+function reset(btn) {
+    busy            = false;
+    btn.disabled    = false;
+    btn.textContent = '▶ Вращать';
+}
+
+function showErr(msg) {
+    var w = document.getElementById('winnings');
+    w.textContent = msg;
+    w.style.color = 'var(--red, #ef4444)';
+    setTimeout(function () { w.textContent = '0'; w.style.color = ''; }, 3000);
 }

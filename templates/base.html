@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Физтех апостолы{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#4f8ef7">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Физтех">
+    <link rel="apple-touch-icon" href="/static/images/uploads/logo1.png">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+{% block nav %}
+<nav class="navbar">
+    <a href="{{ url_for('main_menu') }}" class="navbar-brand">⚡ Физтех апостолы</a>
+    <div class="navbar-links">
+        <a href="{{ url_for('games') }}">Игры</a>
+        <a href="{{ url_for('profile') }}">Профиль</a>
+        <a href="{{ url_for('top') }}">Топ</a>
+        <a href="{{ url_for('logout') }}" class="nav-logout">Выйти</a>
+    </div>
+</nav>
+{% endblock %}
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="flash-wrap">
+        {% for msg in messages %}
+        <div class="flash">{{ msg }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+
+{% block footer %}
+<footer class="site-footer">
+    <p>Основатель: Andrew Frolov &nbsp;·&nbsp; Разработчик: Matvey Gunin &nbsp;·&nbsp;
+    <a href="https://t.me/your_group">Telegram</a></p>
+</footer>
+{% endblock %}
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+}
+</script>
+
+<script>
+(function () {
+    var navbar = document.querySelector('.navbar');
+    if (!navbar) return;
+    var btn = document.createElement('button');
+    btn.className = 'nav-toggle';
+    btn.setAttribute('aria-label', 'Меню');
+    btn.innerHTML = '<span></span><span></span><span></span>';
+    navbar.appendChild(btn);
+    var links = navbar.querySelector('.navbar-links');
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        links.classList.toggle('open');
+        btn.classList.toggle('active');
+    });
+    document.addEventListener('click', function (e) {
+        if (!navbar.contains(e.target)) {
+            links.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+    document.querySelectorAll('.navbar-links a').forEach(function (a) {
+        a.addEventListener('click', function () {
+            links.classList.remove('open');
+            btn.classList.remove('active');
+        });
+    });
+}());
+</script>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

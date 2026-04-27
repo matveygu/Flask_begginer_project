@@ -1,89 +1,40 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Main Menu</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='/css/styles.css') }}">
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #fff;
-        }
-        .header {
-            background-color: #fffff;
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header .buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .header a {
-            text-decoration: none;
-            color: none;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .header .buttons a {
-            text-decoration: none;
-            color: white;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .content {
-            padding: 20px;
-        }
-        h1 {
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        color: #fff;
-        text-shadow:
-           0 0 1px #fff,
-           0 0 2px #fff,
-           0 0 5px #fff,
-           0 0 11px #0fa,
-           0 0 20px #0fa,
-           0 0 30px #0fa,
-           0 0 55px #0fa,
-           0 0 80px #0fa;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <a href="{{ url_for('home') }}">разлогиниться</a>
-        <div class="buttons">
-            <a href="{{ url_for('games') }}">Игры</a>
-            <a href="{{ url_for('profile') }}">Профиль</a>
-            <a href="{{ url_for('top') }}">Топ пользователей</a>
-        </div>
+{% extends 'base.html' %}
+
+{% block title %}Главное меню — Физтех апостолы{% endblock %}
+
+{% block content %}
+<div class="page" style="text-align:center">
+
+    <div class="page-header">
+        <h1 class="page-title">Добро пожаловать! 👋</h1>
+        <p class="page-sub">Физтех апостолы — твоя игровая платформа</p>
     </div>
-    <div class="content">
-        <h1>Физтех апостолы</h1>
-        <h1>Приветствуем на главной странице</h1>
-        <p>Здесь вы можете найти информацию о нас</p>
-        <div class="creator-info">
-            <h2>Основатель группы: Андрей Фролов</h2>
-            <img src="{{ url_for('static', filename='images/uploads/creator_photo.jpg') }}" alt="Creator Photo" class="creator-photo">
-            <p>Бизнесмен, криптоинвестор, и просто крутой чел</p>
-        </div>
-        <a href="https://t.me/your_group">Наша группа в тг</a>
+
+    <div class="menu-grid">
+        <a href="{{ url_for('games') }}" class="menu-card">
+            <span class="menu-icon">🎮</span>
+            <span class="menu-label">Игры</span>
+        </a>
+        <a href="{{ url_for('profile') }}" class="menu-card">
+            <span class="menu-icon">👤</span>
+            <span class="menu-label">Профиль</span>
+        </a>
+        <a href="{{ url_for('top') }}" class="menu-card">
+            <span class="menu-icon">🏆</span>
+            <span class="menu-label">Топ игроков</span>
+        </a>
     </div>
-    <div class="footer">
-        <p>Основатель: Andrew Frolov | Разработчик сайт: Matvey Gunin</p>
-        <a href="https://t.me/your_group">Мы в тг</a>
-        <div class="logos">
-            <h2>Нашы инвесторы</h2>
-            <img src="{{ url_for('static', filename='images/uploads/logo1.png') }}" alt="Logo 1">
-        </div>
+
+    <div class="creator-section">
+        <img src="{{ url_for('static', filename='images/uploads/creator_photo.jpg') }}"
+             alt="Андрей Фролов" class="creator-avatar"
+             onerror="this.style.display='none'">
+        <div class="creator-name">Андрей Фролов</div>
+        <div class="creator-role">Основатель группы · Бизнесмен · Криптоинвестор</div>
+        <a href="https://t.me/your_group" class="btn btn-ghost btn-sm" style="margin-top:16px">
+            Наша группа в Telegram
+        </a>
     </div>
-</body>
-</html>
+
+</div>
+{% endblock %}

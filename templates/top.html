@@ -1,92 +1,65 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Топ</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #fff;
-        }
-        .header {
-            background-color: #fffff;
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header .buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .header a {
-            text-decoration: none;
-            color: none;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .header .buttons a {
-            text-decoration: none;
-            color: white;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .content {
-            padding: 20px;
-        }
-        .top-list {
-            max-width: 600px;
-            margin: 0 auto;
-            border: 2px solid #0ff;
-            border-radius: 10px;
-            box-shadow: 0 0 10px #0ff;
-        }
-        .top-list h1 {
-            text-align: center;
-            color: #0ff;
-        }
-        .user-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px;
-            border-bottom: 1px solid #0ff;
-        }
-        .user-item:last-child {
-            border-bottom: none;
-        }
-        .user-item a {
-            color: #0ff;
-            text-decoration: none;
-        }
-        .user-item a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <a href="{{ url_for('main_menu') }}">На главную</a>
-        <div class="buttons">
-            <a href="{{ url_for('games') }}">Игры</a>
-            <a href="{{ url_for('profile') }}">Профиль</a>
-        </div>
+{% extends 'base.html' %}
+
+{% block title %}Таблица лидеров — Физтех апостолы{% endblock %}
+
+{% block content %}
+<div class="page">
+
+    <div class="page-header" style="text-align:center">
+        <h1 class="page-title">🏆 Таблица лидеров</h1>
+        <p class="page-sub">Топ игроков по количеству монет</p>
     </div>
-    <div class="content">
-        <div class="top-list">
-            <h1>Top Users</h1>
-            {% for user in users %}
-                <div class="user-item">
-                    <span>{{ user.username }}</span>
-                    <span>{{ user.coins }} coins</span>
-                    <a href="{{ url_for('view_profile', user_id=user.id) }}">Посмотреть Профиль</a>
-                </div>
-            {% endfor %}
+
+    <div class="lb">
+        {% for user in users %}
+        <div class="lb-row
+            {% if loop.index == 1 %}gold-row
+            {% elif loop.index == 2 %}silver-row
+            {% elif loop.index == 3 %}bronze-row{% endif %}">
+
+            <div class="lb-rank">
+                {% if loop.index == 1 %}🥇
+                {% elif loop.index == 2 %}🥈
+                {% elif loop.index == 3 %}🥉
+                {% else %}{{ loop.index }}{% endif %}
+            </div>
+
+            <div class="lb-name">{{ user.username }}</div>
+
+            <div class="lb-coins">🪙 {{ user.coins }}</div>
+
+            <a href="{{ url_for('view_profile', user_id=user.id) }}" class="lb-link">
+                Профиль →
+            </a>
+
+            {% if user.id != current_user.id %}
+            <button class="lb-heart {% if user.id in liked_ids %}liked{% endif %}"
+                    data-uid="{{ user.id }}"
+                    title="Лайкнуть">
+                {% if user.id in liked_ids %}❤️{% else %}🤍{% endif %}
+            </button>
+            {% else %}
+            <span class="lb-heart-self" title="{{ likes[user.id] }} лайков">❤️</span>
+            {% endif %}
         </div>
+        {% endfor %}
     </div>
-</body>
-</html>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.lb-heart').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+        btn.disabled = true;
+        const uid  = btn.dataset.uid;
+        const data = await fetch('/like/' + uid, { method: 'POST' }).then(r => r.json());
+
+        btn.textContent = data.liked ? '❤️' : '🤍';
+        btn.classList.toggle('liked', data.liked);
+        btn.disabled = false;
+    });
+});
+</script>
+{% endblock %}

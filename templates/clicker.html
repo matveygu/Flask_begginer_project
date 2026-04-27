@@ -1,109 +1,102 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clicker</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #fff;
-        }
-        .clicker-container {
-            text-align: center;
-        }
-        .clicker-button {
-            width: 200px;
-            height: 200px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 24px;
-            cursor: pointer;
-            border: 4px solid #0ff;
-            border-radius: 15px;
-            box-shadow: 0 0 20px #0ff;
-        }
-        .clicker-button:hover {
-            background-color: #0056b3;
-        }
-        .balance {
-            margin-top: 20px;
-            font-size: 24px;
-        }
-        .header {
-            background-color: #fffff;
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header .buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .header a {
-            text-decoration: none;
-            color: none;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .header .buttons a {
-            text-decoration: none;
-            color: white;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <a href="{{ url_for('games') }}">К выбору игр</a>
-        <div class="buttons">
-            <a href="{{ url_for('profile') }}">Профиль</a>
-            <a href="{{ url_for('top') }}">Топ пользователей</a>
-        </div>
+{% extends 'base.html' %}
+
+{% block title %}Кликер — Физтех апостолы{% endblock %}
+
+{% block nav %}
+<nav class="navbar">
+    <a href="{{ url_for('games') }}" class="navbar-brand">← К играм</a>
+    <div class="navbar-links">
+        <a href="{{ url_for('profile') }}">Профиль</a>
+        <a href="{{ url_for('top') }}">Топ</a>
+        <a href="{{ url_for('logout') }}" class="nav-logout">Выйти</a>
     </div>
-    <div class="clicker-container">
-        <button class="clicker-button" onclick="clickButton()">Кликай</button>
-        <div class="balance">Balance: <span id="balance">{{ current_user.coins }}</span></div>
-    </div>
-    <div class="footer">
-        <p>Creator: Andrew Frolov | Developer: Matvey Gunin</p>
-        <a href="https://t.me/your_group">Our Telegram Group</a>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='images/uploads/logo1.png') }}" alt="Logo 1">
-        </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="page" style="text-align:center">
+
+    <div class="page-header">
+        <h1 class="page-title">👆 Кликер</h1>
+        <p class="page-sub">Жми и зарабатывай монеты!</p>
     </div>
 
-    <script>
-        let balance = {{ current_user.coins }};
-        let lastClickTime = 0;
+    <div class="clicker-wrap">
+        <div class="clicker-amount"><span id="balance">{{ current_user.coins }}</span></div>
+        <div class="clicker-unit">монет</div>
 
-        function clickButton() {
-            const now = Date.now();
-            if (now - lastClickTime < 500) {
-                return;
-            }
-            lastClickTime = now;
+        <button class="clicker-btn" id="clicker-btn">🪙</button>
 
-            balance += 1;
-            document.getElementById('balance').textContent = balance;
+        <p class="clicker-hint">+1 монета за клик · автосохранение каждые 2 сек</p>
+    </div>
 
-            // Отправляем запрос на сервер для обновления баланса
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let balance      = {{ current_user.coins }};
+    let pending      = 0;       // clicks not yet sent to server
+    let lastClick    = 0;
+
+    const balanceEl  = document.getElementById('balance');
+    const btn        = document.getElementById('clicker-btn');
+
+    btn.addEventListener('click', doClick);
+    btn.addEventListener('touchend', function(e) { e.preventDefault(); doClick(e); });
+
+    function doClick(e) {
+        const now = Date.now();
+        if (now - lastClick < 300) return;
+        lastClick = now;
+
+        balance++;
+        pending++;
+        balanceEl.textContent = balance;
+
+        spawnFloat(e);
+    }
+
+    function spawnFloat(e) {
+        const el = document.createElement('div');
+        el.className = 'click-float';
+        el.textContent = '+1';
+
+        // Position near the click/tap point, falling back to button centre
+        const rect = btn.getBoundingClientRect();
+        const x = (e && e.clientX) ? e.clientX : rect.left + rect.width  / 2;
+        const y = (e && e.clientY) ? e.clientY : rect.top  + rect.height / 2;
+
+        el.style.left = x + 'px';
+        el.style.top  = y + 'px';
+        document.body.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+    }
+
+    // ── Debounced save — flush every 2 seconds ────────────────
+    setInterval(flush, 2000);
+
+    function flush(sync) {
+        if (!pending) return;
+        const delta  = Math.min(pending, 50);   // cap per request
+        pending     -= delta;
+
+        if (sync) {
+            navigator.sendBeacon('/update_balance',
+                new URLSearchParams({ delta }));
+        } else {
             fetch('/update_balance', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `balance=${balance}`
+                method:  'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body:    `delta=${delta}`,
             });
         }
-    </script>
-</body>
-</html>
+    }
+
+    // Flush remaining clicks when user leaves the page
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') flush(true);
+    });
+    window.addEventListener('beforeunload', () => flush(true));
+</script>
+{% endblock %}

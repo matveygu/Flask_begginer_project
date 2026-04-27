@@ -1,0 +1,24 @@
+{
+  "name": "Физтех апостолы",
+  "short_name": "Физтех",
+  "description": "Игровая платформа сообщества Физтех апостолы",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0b0f",
+  "theme_color": "#4f8ef7",
+  "icons": [
+    {
+      "src": "/static/images/uploads/logo1.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/uploads/logo1.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

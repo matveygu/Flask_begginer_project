@@ -1,64 +1,43 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Домашняя страница</title>
-    <style>
-        body {
-             margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #fff;
-        }
-        .header {
-            background-color: #fffff;
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header .buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .header .buttons a {
-            text-decoration: none;
-            color: white;
-            background-color: #007BFF;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .content {
-            padding: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="buttons">
-            <a href="{{ url_for('login') }}">Войт</a>
-            <a href="{{ url_for('register') }}">Зарегистрироваться</a>
-        </div>
+{% extends 'base.html' %}
+
+{% block title %}Физтех апостолы{% endblock %}
+
+{% block nav %}
+<nav class="navbar">
+    <a href="{{ url_for('home') }}" class="navbar-brand">⚡ Физтех апостолы</a>
+    <div class="navbar-links">
+        <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm">Войти</a>
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm">Регистрация</a>
     </div>
-    <div class="content">
-        <h1>Физтех апостолы</h1>
-        <h1>Приветствуем на главной странице</h1>
-        <p>Здесь вы можете найти информацию о нас</p>
-        <div class="creator-info">
-            <h2>Основатель группы: Андрей Фролов</h2>
-            <img src="{{ url_for('static', filename='images/uploads/creator_photo.jpg') }}" alt="Creator Photo" class="creator-photo">
-            <p>Бизнесмен, криптоинвестор, и просто крутой чел</p>
-        </div>
-        <a href="https://t.me/your_group">Наша группа в тг</a>
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-badge">🚀 Сообщество Физтех</div>
+    <h1>Физтех<br><span class="accent">апостолы</span></h1>
+    <p>Играй, зарабатывай монеты и становись лучшим в таблице лидеров</p>
+    <div class="hero-actions">
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">Начать играть</a>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary btn-lg">Войти</a>
     </div>
-    <div class="footer">
-        <p>Основатель: Andrew Frolov | Разработчик сайт: Matvey Gunin</p>
-        <a href="https://t.me/your_group">Мы в тг</a>
-        <div class="logos">
-            <h2>Нашы инвесторы</h2>
-            <img src="{{ url_for('static', filename='images/uploads/logo1.png') }}" alt="Logo 1">
-        </div>
-    </div>
-</body>
-</html>
+</section>
+
+<div class="creator-section">
+    <img src="{{ url_for('static', filename='images/uploads/creator_photo.jpg') }}"
+         alt="Андрей Фролов" class="creator-avatar"
+         onerror="this.style.display='none'">
+    <div class="creator-name">Андрей Фролов</div>
+    <div class="creator-role">Основатель группы · Бизнесмен · Криптоинвестор</div>
+    <a href="https://t.me/your_group" class="btn btn-ghost btn-sm" style="margin-top:16px">
+        Наша группа в Telegram
+    </a>
+</div>
+{% endblock %}
+
+{% block footer %}
+<footer class="site-footer">
+    <p>Основатель: Andrew Frolov &nbsp;·&nbsp; Разработчик: Matvey Gunin &nbsp;·&nbsp;
+    <a href="https://t.me/your_group">Telegram</a></p>
+</footer>
+{% endblock %}
