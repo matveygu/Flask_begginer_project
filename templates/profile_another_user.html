@@ -83,11 +83,27 @@
                 {% for ev in history %}
                 <li class="history-item">
                     <span class="history-game">
-                        {% if ev.game == 'slots' %}🎰 Слоты{% else %}🎲 Кости{% endif %}
+                        {% if ev.game == 'slots' %}🎰 Слоты
+                        {% elif ev.game == 'dice' %}🎲 Кости
+                        {% elif ev.game == 'duel' %}⚔️ Дуэли
+                        {% elif ev.game == 'shop' %}🛒 Магазин
+                        {% elif ev.game == 'transfer' %}💸 Перевод
+                        {% elif ev.game == 'bonus' %}✨ Бонус
+                        {% else %}📜 {{ ev.game|capitalize }}
+                        {% endif %}
                     </span>
                     <span class="history-outcome {{ ev.outcome }}">
-                        {% if ev.outcome == 'win' %}Выиграл{% else %}Проиграл{% endif %}
-                    </span>
+                        {% if ev.game == 'transfer' %}
+                            {% if ev.outcome == 'out' %}Отправлено{% else %}Получено{% endif %}
+                        {% elif ev.game == 'shop' %}
+                            {% if ev.amount < 0 %}Потрачено{% else %}Пополнено{% endif %}
+                        {% elif ev.game == 'bonus' %}
+                            Бонус
+                        {% elif ev.game == 'duel' %}
+                            {% if ev.outcome == 'win' %}Выиграл{% elif ev.outcome == 'lose' %}Проиграл{% else %}Ничья{% endif %}
+                        {% else %}
+                            {% if ev.outcome == 'win' %}Выиграл{% else %}Проиграл{% endif %}
+                        {% endif %}
                     <span class="history-amount {% if ev.amount > 0 %}pos{% else %}neg{% endif %}">
                         {% if ev.amount > 0 %}+{{ ev.amount }}{% else %}{{ ev.amount }}{% endif %} 🪙
                     </span>

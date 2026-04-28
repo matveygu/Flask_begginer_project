@@ -8,7 +8,7 @@
     <div class="profile-grid">
 
         <!-- Left: avatar + info -->
-        <div class="card profile-card {% if user.profile_bg == 'animated' %}animated-bg{% endif %}{% if user.avatar_frame != 'default' %} frame-{{ user.avatar_frame }}{% endif %}" style="text-align:center; align-self:start">
+        <div class="card profile-card {% if user.profile_bg == 'animated' %}animated-bg{% endif %}{% if user.avatar_frame != 'default' %} frame-{{ user.avatar_frame }}{% endif %}" style="text-align:center; align-self:start" title="Frame: {{ user.avatar_frame }}, BG: {{ user.profile_bg }}">
             <img src="{{ url_for('static', filename='images/uploads/' + user.photo) }}"
                  alt="Фото профиля" class="profile-avatar"
                  onerror="this.src='{{ url_for('static', filename='images/uploads/default.jpg') }}'">
@@ -98,7 +98,7 @@
             {% if history %}
             <h2 class="page-title" style="margin-top:32px; margin-bottom:14px">История игр</h2>
             <div class="history-filter-row">
-                {% for slug, label in [('all', 'Все'), ('slots', 'Слоты'), ('dice', 'Кости'), ('duel', 'Дуэли'), ('bonus', 'Бонусы'), ('transfer', 'Переводы')] %}
+                {% for slug, label in [('all', 'Все'), ('slots', 'Слоты'), ('dice', 'Кости'), ('duel', 'Дуэли'), ('shop', 'Магазин'), ('bonus', 'Бонусы'), ('transfer', 'Переводы')] %}
                 <a href="{{ url_for('profile', game=slug) }}" class="filter-pill {% if game_filter == slug %}active{% endif %}">{{ label }}</a>
                 {% endfor %}
             </div>
@@ -107,10 +107,27 @@
                 {% for ev in history %}
                 <li class="history-item">
                     <span class="history-game">
-                        {% if ev.game == 'slots' %}🎰 Слоты{% else %}🎲 Кости{% endif %}
+                        {% if ev.game == 'slots' %}🎰 Слоты
+                        {% elif ev.game == 'dice' %}🎲 Кости
+                        {% elif ev.game == 'duel' %}⚔️ Дуэли
+                        {% elif ev.game == 'shop' %}🛒 Магазин
+                        {% elif ev.game == 'transfer' %}💸 Перевод
+                        {% elif ev.game == 'bonus' %}✨ Бонус
+                        {% else %}📜 {{ ev.game|capitalize }}
+                        {% endif %}
                     </span>
                     <span class="history-outcome {{ ev.outcome }}">
-                        {% if ev.outcome == 'win' %}Выиграл{% else %}Проиграл{% endif %}
+                        {% if ev.game == 'transfer' %}
+                            {% if ev.outcome == 'out' %}Отправлено{% else %}Получено{% endif %}
+                        {% elif ev.game == 'shop' %}
+                            {% if ev.amount < 0 %}Потрачено{% else %}Пополнено{% endif %}
+                        {% elif ev.game == 'bonus' %}
+                            Бонус
+                        {% elif ev.game == 'duel' %}
+                            {% if ev.outcome == 'win' %}Выиграл{% elif ev.outcome == 'lose' %}Проиграл{% else %}Ничья{% endif %}
+                        {% else %}
+                            {% if ev.outcome == 'win' %}Выиграл{% else %}Проиграл{% endif %}
+                        {% endif %}
                     </span>
                     <span class="history-amount {% if ev.amount > 0 %}pos{% else %}neg{% endif %}">
                         {% if ev.amount > 0 %}+{{ ev.amount }}{% else %}{{ ev.amount }}{% endif %} 🪙

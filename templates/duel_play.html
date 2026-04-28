@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Дуэль — {{ challenger.username }} vs {{ target.username }}{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header" style="text-align:center">
+        <h1 class="page-title">Дуэль</h1>
+        <p class="page-sub">Выберите число от 1 до 6 и запустите бросок кубика.</p>
+    </div>
+
+    <div class="card duel-card">
+        <div class="duel-row">
+            <div>
+                <strong>{{ challenger.username }}</strong> vs <strong>{{ target.username }}</strong>
+            </div>
+            <div>Ставка: <strong>{{ duel.bet }} 🪙</strong></div>
+        </div>
+
+        {% if duel.status == 'resolved' %}
+        <div class="duel-result">
+            <div class="duel-result-row">
+                <strong>Кубик</strong>
+                <div id="dice-result" class="dice-face">{{ duel.dice_roll or '🎲' }}</div>
+            </div>
+            <div class="duel-result-row">
+                <span>{{ challenger.username }} выбрал: <strong>{{ duel.challenger_number }}</strong></span>
+                <span>{{ target.username }} выбрал: <strong>{{ duel.target_number }}</strong></span>
+            </div>
+            <div class="duel-result-row">
+                {% if duel.winner_id == challenger.id %}
+                    Победитель: <strong>{{ challenger.username }}</strong>
+                {% elif duel.winner_id == target.id %}
+                    Победитель: <strong>{{ target.username }}</strong>
+                {% else %}
+                    Ничья — ставки возвращены
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="duel-status">
+            {% if current_user.id == duel.challenger_id %}
+                {% if duel.challenger_number %}
+                    Ты выбрал число <strong>{{ duel.challenger_number }}</strong>.
+                {% else %}
+                    Выбери число, чтобы начать.
+                {% endif %}
+            {% else %}
+                {% if duel.target_number %}
+                    Ты выбрал число <strong>{{ duel.target_number }}</strong>.
+                {% else %}
+                    Выбери число, чтобы начать.
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="duel-picks">
+            <div><strong>{{ challenger.username }}</strong>: {% if duel.challenger_number %}выбрал {{ duel.challenger_number }}{% else %}ожидает{% endif %}</div>
+            <div><strong>{{ target.username }}</strong>: {% if duel.target_number %}выбрал {{ duel.target_number }}{% else %}ожидает{% endif %}</div>
+        </div>
+
+        {% if (current_user.id == duel.challenger_id and not duel.challenger_number) or
+              (current_user.id == duel.target_id and not duel.target_number) %}
+        <form id="duel-choice-form" method="POST" class="duel-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="duel-options">
+                {% for n in range(1, 7) %}
+                <label class="duel-option">
+                    <input type="radio" name="choice" value="{{ n }}" required>
+                    {{ n }}
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Готово</button>
+        </form>
+        {% else %}
+        <div class="duel-waiting">
+            Ожидание соперника... Если оба выбрали, результаты появятся автоматически.
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <div class="duel-note" style="margin-top:16px">
+            После выбора обоих чисел система бросит кубик и сравнит расстояние до вашего числа.
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form = document.getElementById('duel-choice-form');
+if (form) {
+    form.addEventListener('submit', function () {
+        const resultBox = document.getElementById('dice-result');
+        if (resultBox) {
+            resultBox.textContent = '🎲';
+            resultBox.classList.add('rolling');
+        }
+    });
+}
+</script>
+{% endblock %}

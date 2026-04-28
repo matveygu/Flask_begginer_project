@@ -622,49 +622,100 @@ input[type="file"].form-input::-webkit-file-upload-button:hover {
 }
 
 .profile-card.frame-bronze {
-  box-shadow: 0 0 0 3px rgba(217,119,6,0.24), 
-              inset 0 0 0 1px rgba(217,119,6,0.12) !important;
-  border-color: rgba(217,119,6,0.3) !important;
+  box-shadow: 0 0 0 4px rgba(217,119,6,0.6), 
+              0 0 0 8px rgba(217,119,6,0.2),
+              inset 0 0 0 1px rgba(217,119,6,0.3) !important;
+  border-color: rgba(217,119,6,0.5) !important;
 }
 
 .profile-card.frame-gold {
-  box-shadow: 0 0 0 3px rgba(245,158,11,0.24), 
-              inset 0 0 0 1px rgba(245,158,11,0.12) !important;
-  border-color: rgba(245,158,11,0.3) !important;
+  box-shadow: 0 0 0 4px rgba(245,158,11,0.6), 
+              0 0 0 8px rgba(245,158,11,0.2),
+              inset 0 0 0 1px rgba(245,158,11,0.3) !important;
+  border-color: rgba(245,158,11,0.5) !important;
 }
 
 .profile-card.frame-diamond {
-  box-shadow: 0 0 0 3px rgba(56,189,248,0.24), 
-              inset 0 0 0 1px rgba(56,189,248,0.12) !important;
-  border-color: rgba(56,189,248,0.3) !important;
+  box-shadow: 0 0 0 4px rgba(56,189,248,0.6), 
+              0 0 0 8px rgba(56,189,248,0.2),
+              inset 0 0 0 1px rgba(56,189,248,0.3) !important;
+  border-color: rgba(56,189,248,0.5) !important;
 }
 
 .profile-card.animated-bg {
   animation: profileGlow 8s ease infinite;
-  background: rgba(255,255,255,0.05) !important;
+  background: rgba(255,255,255,0.08) !important;
 }
 
 .profile-card.animated-bg.frame-bronze {
-  box-shadow: 0 0 0 3px rgba(217,119,6,0.24), 
-              inset 0 0 0 1px rgba(217,119,6,0.12) !important;
-  border-color: rgba(217,119,6,0.3) !important;
+  animation: frameGlowBronze 3s ease-in-out infinite;
+  background: rgba(255,255,255,0.08) !important;
 }
 
 .profile-card.animated-bg.frame-gold {
-  box-shadow: 0 0 0 3px rgba(245,158,11,0.24), 
-              inset 0 0 0 1px rgba(245,158,11,0.12) !important;
-  border-color: rgba(245,158,11,0.3) !important;
+  animation: frameGlowGold 3s ease-in-out infinite;
+  background: rgba(255,255,255,0.08) !important;
 }
 
 .profile-card.animated-bg.frame-diamond {
-  box-shadow: 0 0 0 3px rgba(56,189,248,0.24), 
-              inset 0 0 0 1px rgba(56,189,248,0.12) !important;
-  border-color: rgba(56,189,248,0.3) !important;
+  animation: frameGlowDiamond 3s ease-in-out infinite;
+  background: rgba(255,255,255,0.08) !important;
 }
 
 @keyframes profileGlow {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(79,142,247,0.18); }
-  50% { box-shadow: 0 0 0 10px rgba(79,142,247,0.12); }
+  0%, 100% { 
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.18),
+                0 0 0 6px rgba(79,142,247,0.08); 
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(79,142,247,0.12),
+                0 0 0 15px rgba(79,142,247,0.06); 
+  }
+}
+
+@keyframes frameGlowBronze {
+  0%, 100% { 
+    box-shadow: 0 0 0 4px rgba(217,119,6,0.6), 
+                0 0 0 8px rgba(217,119,6,0.2),
+                0 0 0 12px rgba(217,119,6,0.1),
+                inset 0 0 0 1px rgba(217,119,6,0.3);
+  }
+  50% { 
+    box-shadow: 0 0 0 6px rgba(217,119,6,0.8), 
+                0 0 0 12px rgba(217,119,6,0.3),
+                0 0 0 18px rgba(217,119,6,0.05),
+                inset 0 0 0 1px rgba(217,119,6,0.5);
+  }
+}
+
+@keyframes frameGlowGold {
+  0%, 100% { 
+    box-shadow: 0 0 0 4px rgba(245,158,11,0.6), 
+                0 0 0 8px rgba(245,158,11,0.2),
+                0 0 0 12px rgba(245,158,11,0.1),
+                inset 0 0 0 1px rgba(245,158,11,0.3);
+  }
+  50% { 
+    box-shadow: 0 0 0 6px rgba(245,158,11,0.8), 
+                0 0 0 12px rgba(245,158,11,0.3),
+                0 0 0 18px rgba(245,158,11,0.05),
+                inset 0 0 0 1px rgba(245,158,11,0.5);
+  }
+}
+
+@keyframes frameGlowDiamond {
+  0%, 100% { 
+    box-shadow: 0 0 0 4px rgba(56,189,248,0.6), 
+                0 0 0 8px rgba(56,189,248,0.2),
+                0 0 0 12px rgba(56,189,248,0.1),
+                inset 0 0 0 1px rgba(56,189,248,0.3);
+  }
+  50% { 
+    box-shadow: 0 0 0 6px rgba(56,189,248,0.8), 
+                0 0 0 12px rgba(56,189,248,0.3),
+                0 0 0 18px rgba(56,189,248,0.05),
+                inset 0 0 0 1px rgba(56,189,248,0.5);
+  }
 }
 
 .shop-grid {

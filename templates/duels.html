@@ -44,6 +44,27 @@
     </div>
 
     <div class="card duel-card">
+        <h2>Активные дуэли</h2>
+        {% if active %}
+            {% for duel in active %}
+            <div class="duel-row">
+                <div>
+                    {% if duel.challenger_id == current_user.id %}
+                        Твой вызов принят <strong>{{ users[duel.target_id].username }}</strong>
+                    {% else %}
+                        Ты принял вызов <strong>{{ users[duel.challenger_id].username }}</strong>
+                    {% endif %}
+                    на <strong>{{ duel.bet }} 🪙</strong>
+                </div>
+                <a href="{{ url_for('play_duel', duel_id=duel.id) }}" class="btn btn-secondary btn-sm">Открыть бой</a>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>Здесь будут дуэли, в которых оба уже готовы выбрать число.</p>
+        {% endif %}
+    </div>
+
+    <div class="card duel-card">
         <h2>История дуэлей</h2>
         {% if recent %}
             {% for duel in recent %}
@@ -81,9 +102,13 @@ document.querySelectorAll('.accept-duel').forEach(function (btn) {
             body: 'csrf_token=' + encodeURIComponent(token),
         });
         var data = await res.json();
-        alert(data.error || data.message || 'Дуэль завершена');
+        alert(data.error || data.message || 'Дуэль принята');
         if (!data.error) {
-            window.location.reload();
+            if (data.redirect) {
+                window.location = data.redirect;
+            } else {
+                window.location.reload();
+            }
         } else {
             btn.disabled = false;
         }
