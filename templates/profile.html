@@ -8,21 +8,49 @@
     <div class="profile-grid">
 
         <!-- Left: avatar + info -->
-        <div class="card" style="text-align:center; align-self:start">
+        <div class="card profile-card {% if user.profile_bg == 'animated' %}animated-bg{% endif %}{% if user.avatar_frame != 'default' %} frame-{{ user.avatar_frame }}{% endif %}" style="text-align:center; align-self:start">
             <img src="{{ url_for('static', filename='images/uploads/' + user.photo) }}"
                  alt="Фото профиля" class="profile-avatar"
                  onerror="this.src='{{ url_for('static', filename='images/uploads/default.jpg') }}'">
-            <h2 class="profile-name">{{ user.username }}</h2>
+            <h2 class="profile-name" style="color: {{ user.name_color or '#fff' }}">{{ user.username }}</h2>
+            <div class="profile-subline">Уровень {{ level }} · {{ user.xp }} XP</div>
             {% if user.description %}
             <p class="profile-desc">{{ user.description }}</p>
             {% endif %}
-            <div style="display:flex;justify-content:center">
+            <div class="profile-meta-row">
                 <div class="coin-badge">🪙 {{ user.coins }} монет</div>
+                <div class="profile-bonus">Стрик: {{ user.daily_streak }} дней</div>
             </div>
+            {% if bonus_ready %}
+            <form method="POST" action="{{ url_for('daily_bonus') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-gold btn-sm" style="margin-top:18px">
+                    ✨ Получить ежедневный бонус
+                </button>
+            </form>
+            {% else %}
+            <div class="profile-note">Бонус уже получен сегодня</div>
+            {% endif %}
             <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm"
                style="margin-top:20px; display:inline-flex">
                 ✏️ Редактировать
             </a>
+
+            <div class="transfer-panel">
+                <h3 class="transfer-title">Перевод монет</h3>
+                <form method="POST" action="{{ url_for('transfer') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="form-group">
+                        <label class="form-label">Имя получателя</label>
+                        <input type="text" name="username" class="form-input" placeholder="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Сумма</label>
+                        <input type="number" name="amount" class="form-input" min="1" max="{{ user.coins }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm btn-full">Отправить</button>
+                </form>
+            </div>
         </div>
 
         <!-- Right: stats + achievements + history -->
@@ -42,9 +70,13 @@
                     <div class="stat-lbl">Кликов</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-val">{{ like_count }}</div>
-                    <div class="stat-lbl">Лайков получено</div>
+                    <div class="stat-val">{{ stats.win_rate }}%</div>
+                    <div class="stat-lbl">Процент побед</div>
                 </div>
+            </div>
+            <div class="profile-additional-stats">
+                <div class="stat-item">Крупнейший выигрыш: <strong>{{ stats.best_win }} 🪙</strong></div>
+                <div class="stat-item">Текущая серия побед: <strong>{{ stats.current_streak }}</strong></div>
             </div>
 
             <h2 class="page-title" style="margin-top:32px; margin-bottom:18px">Достижения</h2>
@@ -65,6 +97,11 @@
 
             {% if history %}
             <h2 class="page-title" style="margin-top:32px; margin-bottom:14px">История игр</h2>
+            <div class="history-filter-row">
+                {% for slug, label in [('all', 'Все'), ('slots', 'Слоты'), ('dice', 'Кости'), ('duel', 'Дуэли'), ('bonus', 'Бонусы'), ('transfer', 'Переводы')] %}
+                <a href="{{ url_for('profile', game=slug) }}" class="filter-pill {% if game_filter == slug %}active{% endif %}">{{ label }}</a>
+                {% endfor %}
+            </div>
             <div class="card history-card">
                 <ul class="history-list">
                 {% for ev in history %}

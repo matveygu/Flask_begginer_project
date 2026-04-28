@@ -24,7 +24,10 @@
                 {% else %}{{ loop.index }}{% endif %}
             </div>
 
-            <div class="lb-name">{{ user.username }}</div>
+            <div class="lb-name" style="color: {{ user.name_color or '#fff' }}">
+                {{ user.username }}
+                <span class="lb-level">Lv {{ user.xp // 100 + 1 }}</span>
+            </div>
 
             <div class="lb-coins">🪙 {{ user.coins }}</div>
 
@@ -33,6 +36,7 @@
             </a>
 
             {% if user.id != current_user.id %}
+            <button class="lb-challenge" data-uid="{{ user.id }}" title="Вызвать в дуэль">⚔️</button>
             <button class="lb-heart {% if user.id in liked_ids %}liked{% endif %}"
                     data-uid="{{ user.id }}"
                     title="Лайкнуть">
@@ -54,10 +58,34 @@ document.querySelectorAll('.lb-heart').forEach(function (btn) {
     btn.addEventListener('click', async function () {
         btn.disabled = true;
         const uid  = btn.dataset.uid;
-        const data = await fetch('/like/' + uid, { method: 'POST' }).then(r => r.json());
+        const token = document.querySelector('meta[name="csrf-token"]').content;
+        const data = await fetch('/like/' + uid, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': token },
+        }).then(r => r.json());
 
         btn.textContent = data.liked ? '❤️' : '🤍';
         btn.classList.toggle('liked', data.liked);
+        btn.disabled = false;
+    });
+});
+
+document.querySelectorAll('.lb-challenge').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+        const uid = btn.dataset.uid;
+        const bet = parseInt(prompt('Ставка в монетах для дуэли', '50'));
+        if (!bet || bet <= 0) return;
+        btn.disabled = true;
+        const token = document.querySelector('meta[name="csrf-token"]').content;
+        const form = new FormData();
+        form.append('bet', bet);
+        form.append('csrf_token', token);
+        const res = await fetch('/duel/challenge/' + uid, {
+            method: 'POST',
+            body: form,
+        });
+        const data = await res.json();
+        alert(data.error || data.message || 'Вызов отправлен');
         btn.disabled = false;
     });
 });

@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Чат — Физтех апостолы{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header" style="text-align:center">
+        <h1 class="page-title">Глобальный чат</h1>
+        <p class="page-sub">Обменивайся сообщениями с другими игроками</p>
+    </div>
+
+    <div class="chat-card">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label class="form-label">Новое сообщение</label>
+                <textarea name="text" class="form-input" rows="3" placeholder="Напиши что-нибудь..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Отправить</button>
+        </form>
+    </div>
+
+    <div class="chat-card" style="margin-top:24px;">
+        {% if messages %}
+            {% for msg in messages %}
+            <div class="chat-message">
+                <div class="chat-meta">
+                    <strong>{{ users[msg.user_id].username if msg.user_id in users else 'Неизвестный' }}</strong>
+                    <span>{{ msg.ts.strftime('%d.%m %H:%M') }}</span>
+                </div>
+                <div class="chat-text">{{ msg.text }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>Пока нет сообщений. Напиши первое!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

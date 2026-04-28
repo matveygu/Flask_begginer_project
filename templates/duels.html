@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Дуэли — Физтех апостолы{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header" style="text-align:center">
+        <h1 class="page-title">Дуэли</h1>
+        <p class="page-sub">Принимай и отправляй вызовы другим игрокам</p>
+    </div>
+
+    <div class="card duel-card">
+        <h2>Входящие вызовы</h2>
+        {% if incoming %}
+            {% for duel in incoming %}
+            <div class="duel-row">
+                <div>
+                    <strong>{{ users[duel.challenger_id].username }}</strong> предлагает
+                    <strong>{{ duel.bet }} 🪙</strong>
+                </div>
+                <button class="btn btn-primary btn-sm accept-duel" data-id="{{ duel.id }}">Принять</button>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>У тебя нет входящих вызовов.</p>
+        {% endif %}
+    </div>
+
+    <div class="card duel-card">
+        <h2>Отправленные вызовы</h2>
+        {% if outgoing %}
+            {% for duel in outgoing %}
+            <div class="duel-row">
+                <div>
+                    Ты вызвал <strong>{{ users[duel.target_id].username }}</strong> на
+                    <strong>{{ duel.bet }} 🪙</strong>
+                </div>
+                <span class="duel-state">Ожидает ответа</span>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>Ты не отправлял вызовы.</p>
+        {% endif %}
+    </div>
+
+    <div class="card duel-card">
+        <h2>История дуэлей</h2>
+        {% if recent %}
+            {% for duel in recent %}
+            <div class="duel-row">
+                <div>
+                    <strong>{{ users[duel.challenger_id].username }}</strong> vs
+                    <strong>{{ users[duel.target_id].username }}</strong>
+                </div>
+                <span class="duel-state">
+                    {% if duel.winner_id %}
+                        Победитель: {{ users[duel.winner_id].username }}
+                    {% else %}
+                        Ничья
+                    {% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>Здесь появится история твоих дуэлей.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.accept-duel').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+        var duelId = btn.dataset.id;
+        btn.disabled = true;
+        var token = document.querySelector('meta[name="csrf-token"]').content;
+        var res = await fetch('/duel/accept/' + duelId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'csrf_token=' + encodeURIComponent(token),
+        });
+        var data = await res.json();
+        alert(data.error || data.message || 'Дуэль завершена');
+        if (!data.error) {
+            window.location.reload();
+        } else {
+            btn.disabled = false;
+        }
+    });
+});
+</script>
+{% endblock %}

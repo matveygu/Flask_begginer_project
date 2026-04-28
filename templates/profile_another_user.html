@@ -12,7 +12,8 @@
             <img src="{{ url_for('static', filename='images/uploads/' + user.photo) }}"
                  alt="Фото профиля" class="profile-avatar"
                  onerror="this.src='{{ url_for('static', filename='images/uploads/default.jpg') }}'">
-            <h2 class="profile-name">{{ user.username }}</h2>
+            <h2 class="profile-name" style="color: {{ user.name_color or '#fff' }}">{{ user.username }}</h2>
+            <div class="profile-subline">Уровень {{ user.xp // 100 + 1 }} · {{ user.xp }} XP</div>
             {% if user.description %}
             <p class="profile-desc">{{ user.description }}</p>
             {% endif %}
@@ -111,7 +112,11 @@
     btn.addEventListener('click', async function () {
         btn.disabled = true;
         const uid    = btn.dataset.user;
-        const data   = await fetch('/like/' + uid, { method: 'POST' }).then(r => r.json());
+        const token  = document.querySelector('meta[name="csrf-token"]').content;
+        const data   = await fetch('/like/' + uid, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': token },
+        }).then(r => r.json());
 
         document.getElementById('like-icon').textContent  = data.liked ? '❤️' : '🤍';
         document.getElementById('like-count').textContent = data.count;

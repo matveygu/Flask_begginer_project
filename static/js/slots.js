@@ -101,7 +101,11 @@ async function spin() {
 
     highlightWins(cols, finalSymbols);
     document.getElementById('winnings').textContent = data.winnings;
-    document.getElementById('balance').textContent  = data.new_balance;
+    if (typeof animateBalance === 'function') {
+        animateBalance('balance', data.new_balance);
+    } else {
+        document.getElementById('balance').textContent  = data.new_balance;
+    }
 
     reset(btn);
 }

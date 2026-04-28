@@ -23,6 +23,9 @@
     <a href="{{ url_for('main_menu') }}" class="navbar-brand">⚡ Физтех апостолы</a>
     <div class="navbar-links">
         <a href="{{ url_for('games') }}">Игры</a>
+        <a href="{{ url_for('shop') }}">Магазин</a>
+        <a href="{{ url_for('chat') }}">Чат</a>
+        <a href="{{ url_for('duels') }}">Дуэли</a>
         <a href="{{ url_for('profile') }}">Профиль</a>
         <a href="{{ url_for('top') }}">Топ</a>
         <a href="{{ url_for('logout') }}" class="nav-logout">Выйти</a>
@@ -83,6 +86,35 @@ if ('serviceWorker' in navigator) {
         });
     });
 }());
+</script>
+
+<script>
+function animateNumber(el, start, end, duration) {
+    duration = duration || 450;
+    start = Number(start) || 0;
+    end = Number(end) || 0;
+    if (start === end) {
+        el.textContent = end;
+        return;
+    }
+    var startTime = performance.now();
+
+    function frame(time) {
+        var progress = Math.min((time - startTime) / duration, 1);
+        el.textContent = Math.round(start + (end - start) * progress);
+        if (progress < 1) {
+            requestAnimationFrame(frame);
+        }
+    }
+    requestAnimationFrame(frame);
+}
+
+function animateBalance(id, value) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var current = parseInt(el.textContent.replace(/\D/g, '')) || 0;
+    animateNumber(el, current, value, 500);
+}
 </script>
 
 {% block scripts %}{% endblock %}

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Магазин — Физтех апостолы{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header" style="text-align:center">
+        <h1 class="page-title">Магазин</h1>
+        <p class="page-sub">Прокачай профиль: разделённый магазин и интерактивный предпросмотр.</p>
+    </div>
+
+    <div class="shop-top-card">
+        <div>
+            <h2>Баланс</h2>
+            <p class="shop-balance"><strong>{{ current_user.coins }} 🪙</strong></p>
+        </div>
+        <div>
+            <p>Рамка: <strong>{{ current_user.avatar_frame }}</strong></p>
+            <p>Цвет ника: <strong>{{ current_user.name_color or 'стандартный' }}</strong></p>
+            <p>Фон: <strong>{{ current_user.profile_bg }}</strong></p>
+        </div>
+    </div>
+
+    <div class="shop-layout">
+        <aside class="shop-preview-panel">
+            <div class="shop-preview-label">Предпросмотр</div>
+            <div id="shop-preview-card" class="card profile-card shop-preview-card {% if current_user.profile_bg == 'animated' %}animated-bg{% endif %}{% if current_user.avatar_frame != 'default' %} frame-{{ current_user.avatar_frame }}{% endif %}"
+                 data-default-frame="{{ current_user.avatar_frame }}"
+                 data-default-bg="{{ current_user.profile_bg }}"
+                 data-default-color="{{ current_user.name_color or '#fff' }}">
+                <img src="{{ url_for('static', filename='images/uploads/' + current_user.photo) }}"
+                     alt="Фото профиля" class="profile-avatar"
+                     onerror="this.src='{{ url_for('static', filename='images/uploads/default.jpg') }}'">
+                <h2 class="profile-name" id="shop-preview-name"
+                    style="color: {{ current_user.name_color or '#fff' }}">{{ current_user.username }}</h2>
+                <p class="preview-subtitle">Здесь будет показано, как выглядит товар.</p>
+            </div>
+            <div class="shop-preview-meta">
+                <div id="shop-preview-tag">Текущий стиль</div>
+                <div id="shop-preview-description">Наведи на товар, чтобы увидеть визуальный эффект.</div>
+            </div>
+        </aside>
+
+        <main class="shop-categories">
+            {% for category_key, info in categories.items() %}
+            <section class="shop-category">
+                <div class="shop-category-header">
+                    <div>
+                        <h2>{{ info.label }}</h2>
+                        <p>{{ info.description }}</p>
+                    </div>
+                </div>
+                <div class="shop-grid">
+                    {% for item in grouped_items[category_key] %}
+                    <article class="shop-card {% if item.status == 'active' %}shop-card--active{% elif item.status == 'owned' %}shop-card--owned{% endif %}" data-preview-class="{{ item.preview_class }}" data-preview-color="{{ item.preview_color or '' }}" data-preview-text="{{ item.preview_text }}" data-item-key="{{ item.key }}">
+                        <h3>{{ item.label }}</h3>
+                        <p>Стоимость: <strong>{{ item.price }} 🪙</strong></p>
+                        <p class="shop-item-note">{{ item.preview_text }}</p>
+                        <form method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="item" value="{{ item.key }}">
+                            {% if item.status == 'active' %}
+                            <button type="submit" disabled class="btn btn-secondary btn-full" style="cursor: default; opacity: 0.6;">✓ Активно</button>
+                            {% elif item.status == 'owned' %}
+                            <input type="hidden" name="action" value="activate">
+                            <button type="submit" class="btn btn-secondary btn-full">Переключиться</button>
+                            {% else %}
+                            <button type="submit" class="btn btn-primary btn-full">Купить</button>
+                            {% endif %}
+                        </form>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var previewCard = document.getElementById('shop-preview-card');
+    var previewName = document.getElementById('shop-preview-name');
+    var previewTag = document.getElementById('shop-preview-tag');
+    var previewDescription = document.getElementById('shop-preview-description');
+
+    if (!previewCard || !previewName) return;
+
+    var defaultFrame = previewCard.dataset.defaultFrame || 'default';
+    var defaultBg = previewCard.dataset.defaultBg || 'default';
+    var defaultColor = previewCard.dataset.defaultColor || '#fff';
+
+    function resetPreview() {
+        previewCard.className = 'card profile-card';
+        if (defaultBg === 'animated') {
+            previewCard.classList.add('animated-bg');
+        }
+        if (defaultFrame !== 'default') {
+            previewCard.classList.add('frame-' + defaultFrame);
+        }
+        previewName.style.color = defaultColor;
+        previewTag.textContent = 'Текущий стиль';
+        previewDescription.textContent = 'Наведи на товар, чтобы увидеть визуальный эффект.';
+    }
+
+    document.querySelectorAll('.shop-card').forEach(function (card) {
+        card.addEventListener('mouseenter', function () {
+            var previewClass = card.dataset.previewClass;
+            var previewColor = card.dataset.previewColor;
+            var previewText = card.dataset.previewText || 'Предпросмотр';
+
+            previewCard.className = 'card profile-card';
+            if (previewClass) previewCard.classList.add(previewClass);
+            if (previewColor) {
+                previewName.style.color = previewColor;
+            } else {
+                previewName.style.color = defaultColor;
+            }
+            previewTag.textContent = previewText;
+            previewDescription.textContent = 'Это пример того, как будет выглядеть профиль после покупки.';
+        });
+        card.addEventListener('mouseleave', resetPreview);
+    });
+})();
+</script>
+{% endblock %}

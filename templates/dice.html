@@ -95,7 +95,7 @@
                 result.className   = 'dice-result lose';
             } else {
                 dice.textContent = FACES[data.dice_result];   // результат от сервера
-                document.getElementById('coins').textContent = data.coins;
+                animateBalance('coins', data.coins);
 
                 if (data.result === 'win') {
                     result.textContent = '🎉 Вы выиграли!';
