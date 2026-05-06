@@ -79,11 +79,6 @@
                 <div class="stat-item">Текущая серия побед: <strong>{{ stats.current_streak }}</strong></div>
             </div>
 
-            <h2 class="page-title" style="margin-top:32px; margin-bottom:14px">Динамика баланса · 14 дней</h2>
-            <div class="card chart-card">
-                <canvas id="balance-chart" height="220"></canvas>
-            </div>
-
             <h2 class="page-title" style="margin-top:32px; margin-bottom:18px">Достижения</h2>
             <div class="ach-grid ach-grid-3">
                 <div class="ach-card">
@@ -147,43 +142,4 @@
 
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-(async function () {
-    var ctx = document.getElementById('balance-chart');
-    if (!ctx || !window.Chart) return;
-    try {
-        var res  = await fetch('/profile/balance_chart');
-        var data = await res.json();
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'Сумма за день',
-                    data: data.cumulative,
-                    borderColor: '#4f8ef7',
-                    backgroundColor: 'rgba(79,142,247,0.15)',
-                    fill: true,
-                    tension: 0.35,
-                    pointRadius: 3,
-                    pointBackgroundColor: '#4f8ef7',
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                },
-            },
-        });
-    } catch (e) { /* silent */ }
-})();
-</script>
 {% endblock %}

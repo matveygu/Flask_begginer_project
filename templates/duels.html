@@ -127,7 +127,7 @@ document.querySelectorAll('.accept-duel').forEach(function (btn) {
     btn.addEventListener('click', async function () {
         btn.disabled = true;
         var data = await postWithCsrf('/duel/accept/' + btn.dataset.id);
-        if (data.error) { showToast(data.error, 'error'); btn.disabled = false; return; }
+        if (data.error) { alert(data.error); btn.disabled = false; return; }
         if (data.redirect) window.location = data.redirect;
         else window.location.reload();
     });
@@ -138,7 +138,7 @@ document.querySelectorAll('.decline-duel').forEach(function (btn) {
         if (!confirm('Отклонить эту дуэль? Ставка вернётся отправителю.')) return;
         btn.disabled = true;
         var data = await postWithCsrf('/duel/decline/' + btn.dataset.id);
-        if (data.error) { showToast(data.error, 'error'); btn.disabled = false; return; }
+        if (data.error) { alert(data.error); btn.disabled = false; return; }
         window.location.reload();
     });
 });

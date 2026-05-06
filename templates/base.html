@@ -118,46 +118,6 @@ function animateBalance(id, value) {
     var current = parseInt(el.textContent.replace(/\D/g, '')) || 0;
     animateNumber(el, current, value, 500);
 }
-
-// ── Toast notifications ──
-window.showToast = function (msg, kind) {
-    kind = kind || 'info';
-    var host = document.getElementById('toast-host');
-    if (!host) {
-        host = document.createElement('div');
-        host.id = 'toast-host';
-        host.className = 'toast-host';
-        document.body.appendChild(host);
-    }
-    var el = document.createElement('div');
-    el.className = 'toast toast-' + kind;
-    el.textContent = msg;
-    host.appendChild(el);
-    requestAnimationFrame(function () { el.classList.add('visible'); });
-    setTimeout(function () {
-        el.classList.remove('visible');
-        setTimeout(function () { el.remove(); }, 300);
-    }, 3500);
-};
-
-// ── Confetti (CSS-only burst) ──
-window.fireConfetti = function () {
-    var host = document.createElement('div');
-    host.className = 'confetti-host';
-    document.body.appendChild(host);
-    var colors = ['#f59e0b', '#10b981', '#4f8ef7', '#ef4444', '#8b5cf6', '#00d4ff'];
-    for (var i = 0; i < 80; i++) {
-        var p = document.createElement('span');
-        p.className = 'confetti-piece';
-        p.style.left = (Math.random() * 100) + '%';
-        p.style.background = colors[i % colors.length];
-        p.style.animationDelay = (Math.random() * 0.4) + 's';
-        p.style.animationDuration = (1.4 + Math.random() * 1.2) + 's';
-        p.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-        host.appendChild(p);
-    }
-    setTimeout(function () { host.remove(); }, 3500);
-};
 </script>
 
 {% if current_user.is_authenticated %}

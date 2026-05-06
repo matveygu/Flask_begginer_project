@@ -49,14 +49,47 @@ async function spin() {
     btn.textContent = '⏳ Крутим...';
     clearHighlights();
 
-    // Ask server FIRST — it is authoritative about the grid
+    var cols = Array.from(document.querySelectorAll('.column'));
+
+    // Prepend random items to each reel, then scroll up with CSS transition
+    cols.forEach(function (col, i) {
+        addItems(col, EXTRAS[i]);
+        var n    = col.querySelectorAll('div').length;
+        var dist = (n - ROWS) * CELL_H;           // how far to scroll
+        col.style.transition = DURATIONS[i] + 's ease-out';
+        col.style.bottom     = '-' + dist + 'px'; // scroll column down = items move up
+    });
+
+    // Wait for the slowest reel to finish
+    await new Promise(function (resolve) {
+        cols[cols.length - 1].addEventListener('transitionend', resolve, { once: true });
+    });
+
+    // Read visible symbols: after scroll, items[0..2] are the ones in view
+    var finalSymbols = cols.map(function (col) {
+        var items = col.querySelectorAll('div');
+        return [
+            items[0].dataset.sym,
+            items[1].dataset.sym,
+            items[2].dataset.sym,
+        ];
+    });
+
+    // Cleanup: remove extra items, snap position back (no animation)
+    cols.forEach(function (col) {
+        Array.from(col.querySelectorAll('div')).slice(ROWS).forEach(function (el) { el.remove(); });
+        col.style.transition = 'none';
+        col.style.bottom     = '0px';
+    });
+
+    // Send landed grid to server
     var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
     var data;
     try {
         var res = await fetch('/spin', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body:    JSON.stringify({ bet: bet }),
+            body:    JSON.stringify({ bet: bet, symbols: finalSymbols }),
         });
         data = await res.json();
     } catch (_) {
@@ -66,44 +99,12 @@ async function spin() {
 
     if (data.error) { showErr(data.error); reset(btn); return; }
 
-    var serverGrid = data.symbols;  // [[c0r0,c0r1,c0r2], ...]
-    var cols = Array.from(document.querySelectorAll('.column'));
-
-    // Build each reel: fluff at the bottom, server's 3 final symbols at the top.
-    // After scroll by (n - ROWS) * CELL_H px, items[0..2] become visible and
-    // are guaranteed to be the server-decided cells.
-    cols.forEach(function (col, i) {
-        addItems(col, EXTRAS[i] - ROWS);                       // visual fluff
-        for (var r = ROWS - 1; r >= 0; r--) {                  // server symbols on top
-            col.prepend(makeCell(serverGrid[i][r]));
-        }
-        var n    = col.querySelectorAll('div').length;
-        var dist = (n - ROWS) * CELL_H;
-        col.style.transition = DURATIONS[i] + 's ease-out';
-        col.style.bottom     = '-' + dist + 'px';
-    });
-
-    await new Promise(function (resolve) {
-        cols[cols.length - 1].addEventListener('transitionend', resolve, { once: true });
-    });
-
-    // Cleanup extras (keep ROWS visible)
-    cols.forEach(function (col) {
-        Array.from(col.querySelectorAll('div')).slice(ROWS).forEach(function (el) { el.remove(); });
-        col.style.transition = 'none';
-        col.style.bottom     = '0px';
-    });
-
-    highlightWins(cols, serverGrid);
+    highlightWins(cols, finalSymbols);
     document.getElementById('winnings').textContent = data.winnings;
     if (typeof animateBalance === 'function') {
         animateBalance('balance', data.new_balance);
     } else {
-        document.getElementById('balance').textContent = data.new_balance;
-    }
-
-    if (data.winnings >= bet * 5 && typeof window.fireConfetti === 'function') {
-        window.fireConfetti();
+        document.getElementById('balance').textContent  = data.new_balance;
     }
 
     reset(btn);

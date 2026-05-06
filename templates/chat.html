@@ -3,40 +3,42 @@
 {% block title %}Чат — Физтех апостолы{% endblock %}
 
 {% block content %}
-<div class="page chat-page">
+<div class="page">
     <div class="page-header" style="text-align:center">
         <h1 class="page-title">💬 Глобальный чат</h1>
-        <p class="page-sub">Сообщения обновляются в реальном времени</p>
+        <p class="page-sub">Обменивайся сообщениями с другими игроками</p>
     </div>
 
-    <div class="chat-layout">
-        <div class="chat-main">
-            <div class="chat-card chat-history" id="chat-history">
-                <div class="chat-loading">Загрузка истории...</div>
-            </div>
-
-            <div class="chat-card chat-compose">
-                <form id="chat-form">
-                    <div class="chat-compose-row">
-                        <textarea id="chat-text" class="form-input" rows="2" maxlength="240"
-                                  placeholder="Напиши сообщение..." required></textarea>
-                        <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
-                    </div>
-                    <div class="chat-hint">Максимум 240 символов · Ctrl/⌘+Enter — отправить</div>
-                </form>
-            </div>
-        </div>
-
-        <aside class="chat-sidebar">
-            <div class="chat-card">
-                <div class="chat-sidebar-title">
-                    Онлайн <span id="online-count" class="online-count">0</span>
+    <div class="chat-card chat-history" id="chat-history">
+        {% if messages %}
+            {% for msg in messages %}
+            {% set author = users.get(msg.user_id) %}
+            <div class="chat-message {% if msg.user_id == current_user.id %}is-me{% endif %}">
+                <div class="chat-meta">
+                    <strong style="color: {{ (author.name_color if author and author.name_color else '#fff') }}">
+                        {{ author.username if author else 'Неизвестный' }}
+                    </strong>
+                    <span class="chat-level">Lv {{ (author.xp // 100 + 1) if author else 1 }}</span>
+                    <span class="chat-ts">{{ msg.ts.strftime('%d.%m %H:%M') }}</span>
                 </div>
-                <ul class="online-list" id="online-list">
-                    <li class="online-loading">…</li>
-                </ul>
+                <div class="chat-text">{{ msg.text }}</div>
             </div>
-        </aside>
+            {% endfor %}
+        {% else %}
+            <p class="duel-empty" style="text-align:center">Пока нет сообщений. Напиши первое!</p>
+        {% endif %}
+    </div>
+
+    <div class="chat-card chat-compose">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="chat-compose-row">
+                <textarea name="text" class="form-input" rows="2" maxlength="240"
+                          placeholder="Напиши сообщение..." required></textarea>
+                <button type="submit" class="btn btn-primary">Отправить</button>
+            </div>
+            <div class="chat-hint">Максимум 240 символов · Enter+Shift — новая строка</div>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -44,143 +46,19 @@
 {% block scripts %}
 <script>
 (function () {
-    var history     = document.getElementById('chat-history');
-    var onlineList  = document.getElementById('online-list');
-    var onlineCount = document.getElementById('online-count');
-    var form        = document.getElementById('chat-form');
-    var ta          = document.getElementById('chat-text');
-    var sendBtn     = document.getElementById('chat-send-btn');
-    var csrf        = document.querySelector('meta[name="csrf-token"]').content;
+    var hist = document.getElementById('chat-history');
+    if (hist) hist.scrollTop = hist.scrollHeight;
 
-    var lastMsgId = 0;
-    var seenIds   = new Set();
-
-    function escapeHtml(s) {
-        return s.replace(/[&<>"']/g, function (c) {
-            return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    // Submit on Ctrl/Cmd+Enter, allow Shift+Enter for newline
+    var ta = document.querySelector('.chat-compose textarea');
+    if (ta) {
+        ta.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                ta.closest('form').submit();
+            }
         });
     }
-
-    function renderMessage(m) {
-        if (seenIds.has(m.id)) return null;
-        seenIds.add(m.id);
-        if (m.id > lastMsgId) lastMsgId = m.id;
-
-        var div = document.createElement('div');
-        div.className = 'chat-message' + (m.is_me ? ' is-me' : '');
-        div.dataset.id = m.id;
-        var nameStyle = m.color ? ' style="color: ' + m.color + '"' : '';
-        var onlineDot = m.is_online ? '<span class="online-dot" title="Онлайн"></span>' : '';
-        div.innerHTML =
-            '<div class="chat-meta">' +
-                '<strong' + nameStyle + '>' + escapeHtml(m.username) + '</strong>' +
-                onlineDot +
-                '<span class="chat-level">Lv ' + m.level + '</span>' +
-                '<span class="chat-ts">' + escapeHtml(m.ts) + '</span>' +
-            '</div>' +
-            '<div class="chat-text">' + escapeHtml(m.text) + '</div>';
-        return div;
-    }
-
-    function appendMessages(list) {
-        var atBottom = (history.scrollHeight - history.scrollTop - history.clientHeight) < 80;
-        list.forEach(function (m) {
-            var node = renderMessage(m);
-            if (node) history.appendChild(node);
-        });
-        if (atBottom) history.scrollTop = history.scrollHeight;
-    }
-
-    async function loadInitial() {
-        try {
-            var res  = await fetch('/chat/messages');
-            var data = await res.json();
-            history.innerHTML = '';
-            if (!data.messages || !data.messages.length) {
-                history.innerHTML = '<p class="duel-empty" style="text-align:center">Пока нет сообщений. Напиши первое!</p>';
-                return;
-            }
-            appendMessages(data.messages);
-            history.scrollTop = history.scrollHeight;
-        } catch (e) {
-            history.innerHTML = '<p class="duel-empty" style="text-align:center">Не удалось загрузить чат</p>';
-        }
-    }
-
-    async function pollNew() {
-        try {
-            var res  = await fetch('/chat/messages?since=' + lastMsgId);
-            var data = await res.json();
-            if (data.messages && data.messages.length) {
-                if (!history.querySelector('.chat-message')) history.innerHTML = '';
-                appendMessages(data.messages);
-            }
-        } catch (e) { /* ignore */ }
-    }
-
-    async function refreshOnline() {
-        try {
-            var res  = await fetch('/chat/online');
-            var data = await res.json();
-            onlineCount.textContent = data.count;
-            onlineList.innerHTML = '';
-            if (!data.users.length) {
-                onlineList.innerHTML = '<li class="online-loading">Никого нет…</li>';
-                return;
-            }
-            data.users.forEach(function (u) {
-                var li = document.createElement('li');
-                li.className = 'online-item';
-                var nameStyle = u.color ? ' style="color: ' + u.color + '"' : '';
-                li.innerHTML = '<span class="online-dot"></span>' +
-                               '<span class="online-name"' + nameStyle + '>' + escapeHtml(u.username) + '</span>' +
-                               '<span class="online-lvl">Lv ' + u.level + '</span>';
-                onlineList.appendChild(li);
-            });
-        } catch (e) { /* ignore */ }
-    }
-
-    async function sendMessage(text) {
-        if (!text) return;
-        sendBtn.disabled = true;
-        try {
-            var res  = await fetch('/chat/send', {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                body:    JSON.stringify({ text: text }),
-            });
-            var data = await res.json();
-            if (data.error) { showToast(data.error, 'error'); return; }
-            ta.value = '';
-            if (data.message) {
-                if (!history.querySelector('.chat-message')) history.innerHTML = '';
-                appendMessages([data.message]);
-                history.scrollTop = history.scrollHeight;
-            }
-        } catch (e) {
-            showToast('Ошибка отправки', 'error');
-        } finally {
-            sendBtn.disabled = false;
-            ta.focus();
-        }
-    }
-
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        sendMessage(ta.value.trim());
-    });
-
-    ta.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-            e.preventDefault();
-            sendMessage(ta.value.trim());
-        }
-    });
-
-    loadInitial();
-    refreshOnline();
-    setInterval(pollNew,       3000);
-    setInterval(refreshOnline, 15000);
 })();
 </script>
 {% endblock %}
