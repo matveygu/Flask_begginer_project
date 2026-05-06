@@ -5,85 +5,96 @@
 {% block content %}
 <div class="page">
     <div class="page-header" style="text-align:center">
-        <h1 class="page-title">Дуэли</h1>
+        <h1 class="page-title">⚔️ Дуэли</h1>
         <p class="page-sub">Принимай и отправляй вызовы другим игрокам</p>
     </div>
 
     <div class="card duel-card">
-        <h2>Входящие вызовы</h2>
+        <h2>📥 Входящие вызовы</h2>
         {% if incoming %}
             {% for duel in incoming %}
-            <div class="duel-row">
+            <div class="duel-row" data-duel-id="{{ duel.id }}">
                 <div>
                     <strong>{{ users[duel.challenger_id].username }}</strong> предлагает
                     <strong>{{ duel.bet }} 🪙</strong>
                 </div>
-                <button class="btn btn-primary btn-sm accept-duel" data-id="{{ duel.id }}">Принять</button>
+                <div class="duel-actions">
+                    <button class="btn btn-primary btn-sm accept-duel" data-id="{{ duel.id }}">Принять</button>
+                    <button class="btn btn-ghost btn-sm decline-duel" data-id="{{ duel.id }}">Отклонить</button>
+                </div>
             </div>
             {% endfor %}
         {% else %}
-            <p>У тебя нет входящих вызовов.</p>
+            <p class="duel-empty">У тебя нет входящих вызовов.</p>
         {% endif %}
     </div>
 
     <div class="card duel-card">
-        <h2>Отправленные вызовы</h2>
+        <h2>📤 Отправленные вызовы</h2>
         {% if outgoing %}
             {% for duel in outgoing %}
-            <div class="duel-row">
+            <div class="duel-row" data-duel-id="{{ duel.id }}">
                 <div>
                     Ты вызвал <strong>{{ users[duel.target_id].username }}</strong> на
                     <strong>{{ duel.bet }} 🪙</strong>
                 </div>
-                <span class="duel-state">Ожидает ответа</span>
+                <div class="duel-actions">
+                    <span class="duel-state">⏳ Ожидает ответа</span>
+                    <button class="btn btn-ghost btn-sm cancel-duel" data-id="{{ duel.id }}">Отменить</button>
+                </div>
             </div>
             {% endfor %}
         {% else %}
-            <p>Ты не отправлял вызовы.</p>
+            <p class="duel-empty">Ты не отправлял вызовы.</p>
         {% endif %}
     </div>
 
     <div class="card duel-card">
-        <h2>Активные дуэли</h2>
+        <h2>🔥 Активные дуэли</h2>
         {% if active %}
             {% for duel in active %}
             <div class="duel-row">
                 <div>
                     {% if duel.challenger_id == current_user.id %}
-                        Твой вызов принят <strong>{{ users[duel.target_id].username }}</strong>
+                        Твой вызов принят: <strong>{{ users[duel.target_id].username }}</strong>
                     {% else %}
-                        Ты принял вызов <strong>{{ users[duel.challenger_id].username }}</strong>
+                        Ты принял вызов от <strong>{{ users[duel.challenger_id].username }}</strong>
                     {% endif %}
                     на <strong>{{ duel.bet }} 🪙</strong>
                 </div>
-                <a href="{{ url_for('play_duel', duel_id=duel.id) }}" class="btn btn-secondary btn-sm">Открыть бой</a>
+                <a href="{{ url_for('play_duel', duel_id=duel.id) }}" class="btn btn-primary btn-sm">⚔️ Открыть бой</a>
             </div>
             {% endfor %}
         {% else %}
-            <p>Здесь будут дуэли, в которых оба уже готовы выбрать число.</p>
+            <p class="duel-empty">Здесь будут дуэли, в которых оба готовы выбрать число.</p>
         {% endif %}
     </div>
 
     <div class="card duel-card">
-        <h2>История дуэлей</h2>
+        <h2>📜 История дуэлей</h2>
         {% if recent %}
             {% for duel in recent %}
             <div class="duel-row">
                 <div>
                     <strong>{{ users[duel.challenger_id].username }}</strong> vs
                     <strong>{{ users[duel.target_id].username }}</strong>
+                    <span class="duel-history-bet">({{ duel.bet }} 🪙)</span>
                 </div>
                 <span class="duel-state">
-                    {% if duel.winner_id %}
-                        Победитель: {{ users[duel.winner_id].username }}
+                    {% if duel.status == 'declined' %}
+                        ❌ Отклонён
+                    {% elif duel.status == 'cancelled' %}
+                        ⊘ Отменён
+                    {% elif duel.winner_id %}
+                        🏆 {{ users[duel.winner_id].username }}
                     {% else %}
-                        Ничья
+                        🤝 Ничья
                     {% endif %}
                 </span>
             </div>
             {% endfor %}
         {% else %}
-            <p>Здесь появится история твоих дуэлей.</p>
+            <p class="duel-empty">Здесь появится история твоих дуэлей.</p>
         {% endif %}
     </div>
 </div>
@@ -91,28 +102,55 @@
 
 {% block scripts %}
 <script>
-document.querySelectorAll('.accept-duel').forEach(function (btn) {
-    btn.addEventListener('click', async function () {
-        var duelId = btn.dataset.id;
+(function () {
+    var token = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function postDuel(url, btn) {
         btn.disabled = true;
-        var token = document.querySelector('meta[name="csrf-token"]').content;
-        var res = await fetch('/duel/accept/' + duelId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'csrf_token=' + encodeURIComponent(token),
-        });
-        var data = await res.json();
-        alert(data.error || data.message || 'Дуэль принята');
-        if (!data.error) {
-            if (data.redirect) {
-                window.location = data.redirect;
-            } else {
-                window.location.reload();
+        try {
+            var res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'csrf_token=' + encodeURIComponent(token),
+            });
+            var data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                btn.disabled = false;
+                return null;
             }
-        } else {
+            return data;
+        } catch (e) {
+            alert('Ошибка сети');
             btn.disabled = false;
+            return null;
         }
+    }
+
+    document.querySelectorAll('.accept-duel').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var data = await postDuel('/duel/accept/' + btn.dataset.id, btn);
+            if (!data) return;
+            if (data.redirect) window.location = data.redirect;
+            else window.location.reload();
+        });
     });
-});
+
+    document.querySelectorAll('.decline-duel').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            if (!confirm('Отклонить вызов?')) return;
+            var data = await postDuel('/duel/decline/' + btn.dataset.id, btn);
+            if (data) window.location.reload();
+        });
+    });
+
+    document.querySelectorAll('.cancel-duel').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            if (!confirm('Отменить вызов и вернуть монеты?')) return;
+            var data = await postDuel('/duel/cancel/' + btn.dataset.id, btn);
+            if (data) window.location.reload();
+        });
+    });
+}());
 </script>
 {% endblock %}

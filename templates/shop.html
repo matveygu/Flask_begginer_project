@@ -60,12 +60,13 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="item" value="{{ item.key }}">
                             {% if item.status == 'active' %}
-                            <button type="submit" disabled class="btn btn-secondary btn-full" style="cursor: default; opacity: 0.6;">✓ Активно</button>
+                            <input type="hidden" name="action" value="deactivate">
+                            <button type="submit" class="btn btn-secondary btn-full">✓ Активно — снять</button>
                             {% elif item.status == 'owned' %}
                             <input type="hidden" name="action" value="activate">
-                            <button type="submit" class="btn btn-secondary btn-full">Переключиться</button>
+                            <button type="submit" class="btn btn-secondary btn-full">Активировать</button>
                             {% else %}
-                            <button type="submit" class="btn btn-primary btn-full">Купить</button>
+                            <button type="submit" class="btn btn-primary btn-full">Купить за {{ item.price }} 🪙</button>
                             {% endif %}
                         </form>
                     </article>

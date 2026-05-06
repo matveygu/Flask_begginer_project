@@ -506,6 +506,14 @@ def shop():
             flash(f"Активирован: {payload['label']}")
             return redirect(url_for('shop'))
 
+        if action == 'deactivate':
+            field = payload['field']
+            default = '' if field == 'name_color' else 'default'
+            setattr(current_user, field, default)
+            db.session.commit()
+            flash(f"Снят: {payload['label']}")
+            return redirect(url_for('shop'))
+
         if current_user.owns_item(item):
             flash('Товар уже куплен. Переключитесь на него.')
             return redirect(url_for('shop'))
@@ -605,7 +613,7 @@ def duels():
     ).order_by(Duel.accepted_at.desc()).all()
     recent = Duel.query.filter(
         ((Duel.challenger_id == current_user.id) | (Duel.target_id == current_user.id)),
-        Duel.status == 'resolved'
+        Duel.status.in_(['resolved', 'declined', 'cancelled'])
     ).order_by(Duel.resolved_at.desc()).limit(20).all()
     user_ids = {d.challenger_id for d in incoming + outgoing + active + recent} | {d.target_id for d in incoming + outgoing + active + recent}
     users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
@@ -658,6 +666,61 @@ def accept_duel(duel_id):
         'ok': True,
         'message': 'Дуэль принята. Открой страницу боя, чтобы выбрать число.',
         'redirect': url_for('play_duel', duel_id=duel.id),
+    })
+
+
+@app.route('/duel/decline/<int:duel_id>', methods=['POST'])
+@login_required
+def decline_duel(duel_id):
+    _require_form_csrf()
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or duel.target_id != current_user.id or duel.status != 'pending':
+        return jsonify({'error': 'Дуэль не найдена'}), 404
+
+    challenger = db.session.get(User, duel.challenger_id)
+    if challenger is not None:
+        challenger.coins += duel.bet
+    duel.status = 'declined'
+    duel.resolved_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({'ok': True, 'message': 'Вызов отклонён, монеты возвращены сопернику'})
+
+
+@app.route('/duel/cancel/<int:duel_id>', methods=['POST'])
+@login_required
+def cancel_duel(duel_id):
+    _require_form_csrf()
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or duel.challenger_id != current_user.id or duel.status != 'pending':
+        return jsonify({'error': 'Дуэль не найдена'}), 404
+
+    current_user.coins += duel.bet
+    duel.status = 'cancelled'
+    duel.resolved_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({'ok': True, 'message': 'Вызов отменён, монеты возвращены'})
+
+
+@app.route('/duel/state/<int:duel_id>')
+@login_required
+def duel_state(duel_id):
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or current_user.id not in (duel.challenger_id, duel.target_id):
+        return jsonify({'error': 'Дуэль не найдена'}), 404
+
+    is_challenger = current_user.id == duel.challenger_id
+    my_pick = duel.challenger_number if is_challenger else duel.target_number
+    opp_picked = bool(duel.target_number) if is_challenger else bool(duel.challenger_number)
+
+    return jsonify({
+        'status': duel.status,
+        'my_pick': my_pick,
+        'opponent_picked': opp_picked,
+        'resolved': duel.status == 'resolved',
+        'dice_roll': duel.dice_roll if duel.status == 'resolved' else None,
+        'challenger_number': duel.challenger_number if duel.status == 'resolved' else None,
+        'target_number': duel.target_number if duel.status == 'resolved' else None,
+        'winner_id': duel.winner_id if duel.status == 'resolved' else None,
     })
 
 
