@@ -1,0 +1,43 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# SQLite databases (kept in instance/, generated)
+instance/*.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Uploads (user-generated, except defaults)
+static/images/uploads/*
+!static/images/uploads/default.jpg
+!static/images/uploads/logo*.png
+!static/images/uploads/creator_photo.jpg
+
+# Worktrees / Claude artifacts
+.claude/worktrees/

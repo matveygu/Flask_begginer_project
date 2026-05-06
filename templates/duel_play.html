@@ -179,6 +179,9 @@
 
         {# ── Resolved ── #}
         {% if duel.status == 'resolved' %}
+        {% if duel.winner_id == current_user.id %}
+        <script>setTimeout(function () { if (window.fireConfetti) window.fireConfetti(); }, 200);</script>
+        {% endif %}
         <div class="duel-section duel-result-zone">
             {% if duel.winner_id == current_user.id %}
             <div class="duel-result-banner win">

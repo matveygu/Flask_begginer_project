@@ -1,6 +1,7 @@
 import os
 import random
 import json
+import time
 from datetime import datetime, timezone, timedelta, date
 
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_from_directory, abort
@@ -690,25 +691,71 @@ def shop():
     return render_template('shop.html', categories=SHOP_CATEGORIES, grouped_items=grouped_items)
 
 
-@app.route('/chat', methods=['GET', 'POST'])
+def _msg_to_dict(msg, author):
+    return {
+        'id':       msg.id,
+        'user_id':  msg.user_id,
+        'username': author.username if author else 'Неизвестный',
+        'color':    (author.name_color if author and author.name_color else ''),
+        'level':    (author.xp // 100 + 1) if author else 1,
+        'is_online': bool(author and author.is_online),
+        'text':     msg.text,
+        'ts':       msg.ts.strftime('%d.%m %H:%M'),
+        'is_me':    bool(author and author.id == current_user.id),
+    }
+
+
+@app.route('/chat')
 @login_required
 def chat():
-    if request.method == 'POST':
-        _require_form_csrf()
-        text = request.form.get('text', '').strip()
-        if not text:
-            flash('Сообщение не может быть пустым')
-            return redirect(url_for('chat'))
-        if len(text) > 240:
-            flash('Сообщение слишком длинное')
-            return redirect(url_for('chat'))
-        db.session.add(ChatMessage(user_id=current_user.id, text=text))
-        db.session.commit()
-        return redirect(url_for('chat'))
+    return render_template('chat.html')
 
-    messages = ChatMessage.query.order_by(ChatMessage.ts.desc()).limit(50).all()[::-1]
-    users = {u.id: u for u in User.query.filter(User.id.in_([m.user_id for m in messages])).all()} if messages else {}
-    return render_template('chat.html', messages=messages, users=users)
+
+@app.route('/chat/messages')
+@login_required
+def chat_messages():
+    since = request.args.get('since', type=int) or 0
+    q = ChatMessage.query
+    if since:
+        q = q.filter(ChatMessage.id > since).order_by(ChatMessage.id.asc()).limit(50)
+    else:
+        q = q.order_by(ChatMessage.ts.desc()).limit(50)
+    msgs = q.all()
+    if not since:
+        msgs = msgs[::-1]
+    user_ids = [m.user_id for m in msgs]
+    users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    return jsonify({'messages': [_msg_to_dict(m, users.get(m.user_id)) for m in msgs]})
+
+
+@app.route('/chat/send', methods=['POST'])
+@login_required
+def chat_send():
+    _require_form_csrf()
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'error': 'Пустое сообщение'}), 400
+    if len(text) > 240:
+        return jsonify({'error': 'Слишком длинное сообщение'}), 400
+    msg = ChatMessage(user_id=current_user.id, text=text)
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({'ok': True, 'message': _msg_to_dict(msg, current_user)})
+
+
+@app.route('/chat/online')
+@login_required
+def chat_online():
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=ONLINE_WINDOW)
+    users = User.query.filter(User.last_seen.isnot(None)).order_by(User.last_seen.desc()).limit(50).all()
+    online = [{
+        'id':         u.id,
+        'username':   u.username,
+        'color':      u.name_color or '',
+        'level':      u.xp // 100 + 1,
+    } for u in users if u.is_online]
+    return jsonify({'users': online, 'count': len(online)})
 
 
 @app.route('/transfer', methods=['POST'])
@@ -882,13 +929,8 @@ def submit_duel_play(duel_id):
         else:
             duel.target_score = score
         result_payload = {'score': score, 'roll': score}
-    else:  # slots
-        data = request.get_json(force=True, silent=True) or {}
-        symbols = data.get('symbols')
-        if (not isinstance(symbols, list) or len(symbols) != 5 or
-                not all(isinstance(col, list) and len(col) == 3 and
-                        all(s in SLOT_SYMBOLS for s in col) for col in symbols)):
-            return jsonify({'error': 'Неверные символы'}), 400
+    else:  # slots — server-authoritative
+        symbols = [[random.choice(SLOT_SYMBOLS) for _ in range(3)] for _ in range(5)]
         score = calculate_slot_winnings(symbols, duel.bet)
         symbols_json = json.dumps(symbols)
         if is_challenger:
@@ -1027,19 +1069,14 @@ def casino():
 @app.route('/spin', methods=['POST'])
 @login_required
 def spin():
-    data    = request.get_json(force=True, silent=True) or {}
-    bet     = data.get('bet')
-    symbols = data.get('symbols')
-
+    _require_form_csrf()
+    data = request.get_json(force=True, silent=True) or {}
+    bet  = data.get('bet')
     if not isinstance(bet, int) or bet <= 0 or bet > current_user.coins:
         return jsonify({'error': 'Неверная ставка'}), 400
 
-    if (not isinstance(symbols, list) or len(symbols) != 5 or
-            not all(isinstance(col, list) and len(col) == 3 and
-                    all(s in SLOT_SYMBOLS for s in col)
-                    for col in symbols)):
-        return jsonify({'error': 'Неверные символы'}), 400
-
+    # Server-authoritative: generate the grid here so client can't fabricate wins
+    symbols = [[random.choice(SLOT_SYMBOLS) for _ in range(3)] for _ in range(5)]
     winnings = calculate_slot_winnings(symbols, bet)
     net      = winnings - bet
 
@@ -1049,7 +1086,11 @@ def spin():
 
     record_game_event(current_user, 'slots', net, 'win' if net > 0 else 'lose')
     db.session.commit()
-    return jsonify({'winnings': winnings, 'new_balance': current_user.coins})
+    return jsonify({
+        'symbols':     symbols,
+        'winnings':    winnings,
+        'new_balance': current_user.coins,
+    })
 
 
 # ── Dice ──────────────────────────────────────────────────────
@@ -1063,6 +1104,7 @@ def dice():
 @app.route('/roll_dice', methods=['POST'])
 @login_required
 def roll_dice():
+    _require_form_csrf()
     bet    = request.form.get('bet',    type=int)
     target = request.form.get('target', type=int)
 
@@ -1096,12 +1138,22 @@ def clicker():
     return render_template('clicker.html', current_user=current_user)
 
 
+_click_throttle = {}  # user_id -> monotonic timestamp of last click
+
 @app.route('/update_balance', methods=['POST'])
 @login_required
 def update_balance():
+    _require_form_csrf()
     delta = request.form.get('delta', type=int)
-    if delta is None or delta <= 0 or delta > 50:
+    if delta is None or delta <= 0 or delta > 5:
         return jsonify({'error': 'Bad delta'}), 400
+
+    now  = time.monotonic()
+    last = _click_throttle.get(current_user.id, 0)
+    if now - last < 0.08:  # ≥80 ms between clicks ≈ 12 cps cap
+        return jsonify({'error': 'Too fast'}), 429
+    _click_throttle[current_user.id] = now
+
     current_user.coins  += delta
     current_user.clicks += delta
     record_game_event(current_user, 'clicker', delta, 'earn')
@@ -1110,6 +1162,35 @@ def update_balance():
 
 
 # ── Profile ───────────────────────────────────────────────────
+
+@app.route('/profile/balance_chart')
+@login_required
+def profile_balance_chart():
+    """Cumulative net change per day for the last 14 days (own profile)."""
+    user_id = request.args.get('user_id', type=int) or current_user.id
+    since   = datetime.now(timezone.utc) - timedelta(days=14)
+    events  = GameEvent.query.filter(
+        GameEvent.user_id == user_id, GameEvent.ts >= since
+    ).order_by(GameEvent.ts.asc()).all()
+    by_day = {}
+    for e in events:
+        ts = e.ts
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        day = ts.date().isoformat()
+        by_day[day] = by_day.get(day, 0) + e.amount
+    today = datetime.now(timezone.utc).date()
+    labels, deltas, cumulative = [], [], []
+    running = 0
+    for i in range(13, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        labels.append(d[5:])  # MM-DD
+        delta = by_day.get(d, 0)
+        deltas.append(delta)
+        running += delta
+        cumulative.append(running)
+    return jsonify({'labels': labels, 'deltas': deltas, 'cumulative': cumulative})
+
 
 @app.route('/profile')
 @login_required
@@ -1151,21 +1232,29 @@ def view_profile(user_id):
         flash('Пользователь не найден')
         return redirect(url_for('top'))
 
+    game_filter = request.args.get('game', 'all')
     achievements = {
         'casino_spins': get_achievement_image(user.casino_spins),
         'dice_rolls':   get_achievement_image(user.dice_rolls),
         'clicks':       get_achievement_image(user.clicks),
     }
-    history    = GameEvent.query.filter_by(user_id=user.id)\
-                     .order_by(GameEvent.ts.desc()).limit(10).all()
+    history_q = GameEvent.query.filter_by(user_id=user.id)
+    if game_filter != 'all':
+        history_q = history_q.filter_by(game=game_filter)
+    history    = history_q.order_by(GameEvent.ts.desc()).limit(20).all()
     like_count = get_like_count(user.id)
     user_liked = has_liked(current_user.id, user.id)
+    stats      = compute_user_stats(user)
+    level      = calculate_level(user.xp)
     return render_template('profile_another_user.html',
                            user=user,
                            achievements=achievements,
                            history=history,
                            like_count=like_count,
-                           user_liked=user_liked)
+                           user_liked=user_liked,
+                           stats=stats,
+                           level=level,
+                           game_filter=game_filter)
 
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
@@ -1211,10 +1300,28 @@ def edit_profile():
 @app.route('/top')
 @login_required
 def top():
-    users     = User.query.order_by(User.coins.desc()).all()
+    period = request.args.get('period', 'all')  # 'all' | 'week' | 'day'
+    if period == 'week' or period == 'day':
+        delta  = timedelta(days=7) if period == 'week' else timedelta(days=1)
+        cutoff = datetime.now(timezone.utc) - delta
+        rows = db.session.query(
+            User,
+            db.func.coalesce(db.func.sum(GameEvent.amount), 0).label('period_amount'),
+        ).outerjoin(
+            GameEvent,
+            db.and_(GameEvent.user_id == User.id, GameEvent.ts >= cutoff)
+        ).group_by(User.id).order_by(db.text('period_amount DESC, user.coins DESC')).all()
+        users = [r[0] for r in rows]
+        period_amounts = {r[0].id: int(r[1] or 0) for r in rows}
+    else:
+        users = User.query.order_by(User.coins.desc()).all()
+        period_amounts = {}
     likes     = {u.id: get_like_count(u.id) for u in users}
     liked_ids = {l.to_id for l in Like.query.filter_by(from_id=current_user.id).all()}
-    return render_template('top.html', users=users, likes=likes, liked_ids=liked_ids, frame_colors=FRAME_COLORS)
+    return render_template('top.html',
+                           users=users, likes=likes, liked_ids=liked_ids,
+                           frame_colors=FRAME_COLORS,
+                           period=period, period_amounts=period_amounts)
 
 
 @app.route('/like/<int:user_id>', methods=['POST'])
@@ -1239,6 +1346,30 @@ def like_user(user_id):
     db.session.commit()
     count = get_like_count(user_id)
     return jsonify({'liked': liked, 'count': count})
+
+
+# ── Error handlers ────────────────────────────────────────────
+
+@app.errorhandler(404)
+def page_not_found(_):
+    return render_template('error.html', code=404,
+                           title='Страница не найдена',
+                           message='Похоже, такой страницы нет. Попробуйте вернуться на главную.'), 404
+
+
+@app.errorhandler(500)
+def internal_error(_):
+    db.session.rollback()
+    return render_template('error.html', code=500,
+                           title='Что-то пошло не так',
+                           message='Внутренняя ошибка сервера. Мы уже знаем и работаем над этим.'), 500
+
+
+@app.errorhandler(403)
+def forbidden(_):
+    return render_template('error.html', code=403,
+                           title='Доступ закрыт',
+                           message='У вас нет прав для просмотра этой страницы.'), 403
 
 
 # ── Entry point ───────────────────────────────────────────────

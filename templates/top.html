@@ -7,7 +7,17 @@
 
     <div class="page-header" style="text-align:center">
         <h1 class="page-title">🏆 Таблица лидеров</h1>
-        <p class="page-sub">Топ игроков по количеству монет · 🟢 онлайн</p>
+        <p class="page-sub">
+            {% if period == 'week' %}Лучшие за неделю по чистому выигрышу
+            {% elif period == 'day' %}Лучшие за сутки по чистому выигрышу
+            {% else %}Топ игроков по количеству монет{% endif %} · 🟢 онлайн
+        </p>
+    </div>
+
+    <div class="lb-tabs">
+        <a href="{{ url_for('top') }}"          class="lb-tab {% if period == 'all'  %}active{% endif %}">Всё время</a>
+        <a href="{{ url_for('top', period='week') }}" class="lb-tab {% if period == 'week' %}active{% endif %}">Неделя</a>
+        <a href="{{ url_for('top', period='day')  }}" class="lb-tab {% if period == 'day'  %}active{% endif %}">Сутки</a>
     </div>
 
     <div class="lb">
@@ -30,7 +40,15 @@
                 <span class="lb-level">Lv {{ user.xp // 100 + 1 }}</span>
             </div>
 
-            <div class="lb-coins">🪙 {{ user.coins }}</div>
+            <div class="lb-coins">
+                🪙 {{ user.coins }}
+                {% if period in ('week', 'day') %}
+                {% set delta = period_amounts.get(user.id, 0) %}
+                <span class="lb-period {% if delta > 0 %}pos{% elif delta < 0 %}neg{% endif %}">
+                    {% if delta >= 0 %}+{% endif %}{{ delta }}
+                </span>
+                {% endif %}
+            </div>
 
             <a href="{{ url_for('view_profile', user_id=user.id) }}" class="lb-link">
                 Профиль →
@@ -90,7 +108,8 @@ document.querySelectorAll('.lb-challenge:not(.offline)').forEach(function (btn) 
             body: form,
         });
         const data = await res.json();
-        alert(data.error || data.message || 'Вызов отправлен');
+        const msg = data.error || data.message || 'Вызов отправлен';
+        showToast(msg, data.error ? 'error' : 'success');
         btn.disabled = false;
     });
 });

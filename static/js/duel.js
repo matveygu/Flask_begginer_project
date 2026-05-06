@@ -63,10 +63,10 @@
             try {
                 var res  = await fetch('/duel/' + duelId + '/choose', { method: 'POST', body: fd });
                 var data = await res.json();
-                if (data.error) { alert(data.error); document.querySelectorAll('.duel-mode-card').forEach(function (b) { b.disabled = false; }); return; }
+                if (data.error) { showToast(data.error, 'error'); document.querySelectorAll('.duel-mode-card').forEach(function (b) { b.disabled = false; }); return; }
                 window.location.reload();
             } catch (e) {
-                alert('Ошибка соединения');
+                showToast('Ошибка соединения', 'error');
                 document.querySelectorAll('.duel-mode-card').forEach(function (b) { b.disabled = false; });
             }
         });
@@ -95,7 +95,7 @@
                     if (anim) clearInterval(anim);
                     if (face) face.classList.remove('rolling');
                     if (data.error) {
-                        alert(data.error);
+                        showToast(data.error, 'error');
                         diceBtn.disabled = false;
                         diceBtn.textContent = 'Бросить';
                         return;
@@ -107,7 +107,7 @@
             } catch (e) {
                 if (anim) clearInterval(anim);
                 if (face) face.classList.remove('rolling');
-                alert('Ошибка соединения');
+                showToast('Ошибка соединения', 'error');
                 diceBtn.disabled = false;
                 diceBtn.textContent = 'Бросить';
             }
@@ -150,9 +150,35 @@
             slotsBtn.disabled = true;
             slotsBtn.textContent = '⏳ Крутим...';
 
+            // Server-authoritative: ask server first
+            var data;
+            try {
+                var res  = await fetch('/duel/' + duelId + '/play', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                    body:    JSON.stringify({}),
+                });
+                data = await res.json();
+            } catch (e) {
+                showToast('Ошибка соединения', 'error');
+                slotsBtn.disabled = false;
+                slotsBtn.textContent = '▶ Вращать';
+                return;
+            }
+            if (data.error) {
+                showToast(data.error, 'error');
+                slotsBtn.disabled = false;
+                slotsBtn.textContent = '▶ Вращать';
+                return;
+            }
+
+            var serverGrid = data.result.symbols;
             var cols = Array.from(document.querySelectorAll('.duel-slot-machine .column'));
             cols.forEach(function (col, i) {
-                addItems(col, EXTRAS[i]);
+                addItems(col, EXTRAS[i] - ROWS);
+                for (var r = ROWS - 1; r >= 0; r--) {
+                    col.prepend(makeCell(serverGrid[i][r]));
+                }
                 var n    = col.querySelectorAll('div').length;
                 var dist = (n - ROWS) * CELL_H;
                 col.style.transition = DURATIONS[i] + 's ease-out';
@@ -163,39 +189,16 @@
                 cols[cols.length - 1].addEventListener('transitionend', resolve, { once: true });
             });
 
-            var symbols = cols.map(function (col) {
-                var items = col.querySelectorAll('div');
-                return [items[0].dataset.sym, items[1].dataset.sym, items[2].dataset.sym];
-            });
-
             cols.forEach(function (col) {
                 Array.from(col.querySelectorAll('div')).slice(ROWS).forEach(function (el) { el.remove(); });
                 col.style.transition = 'none';
                 col.style.bottom     = '0px';
             });
 
-            try {
-                var res  = await fetch('/duel/' + duelId + '/play', {
-                    method:  'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-                    body:    JSON.stringify({ symbols: symbols }),
-                });
-                var data = await res.json();
-                if (data.error) {
-                    alert(data.error);
-                    slotsBtn.disabled = false;
-                    slotsBtn.textContent = '▶ Вращать';
-                    return;
-                }
-                var scoreSpan = document.getElementById('slots-score');
-                if (scoreSpan) scoreSpan.textContent = data.result.score;
-                setStatus(iamChlng ? 'challenger' : 'target', '✓ ход сделан', true);
-                handlePlayResponse(data);
-            } catch (e) {
-                alert('Ошибка соединения');
-                slotsBtn.disabled = false;
-                slotsBtn.textContent = '▶ Вращать';
-            }
+            var scoreSpan = document.getElementById('slots-score');
+            if (scoreSpan) scoreSpan.textContent = data.result.score;
+            setStatus(iamChlng ? 'challenger' : 'target', '✓ ход сделан', true);
+            handlePlayResponse(data);
         });
     }
     bindSlots();
@@ -211,6 +214,9 @@
                 data.round_result.winner
             );
             if (data.done) {
+                if (data.final && data.final.is_winner && typeof window.fireConfetti === 'function') {
+                    window.fireConfetti();
+                }
                 setTimeout(function () { window.location.reload(); }, 2500);
             } else {
                 setTimeout(function () {
@@ -219,7 +225,6 @@
                 }, 2200);
             }
         } else {
-            // I played but opponent hasn't yet
             replacePlayUiWithWait();
             startPolling();
         }
