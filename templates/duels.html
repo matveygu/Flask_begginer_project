@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page">
     <div class="page-header" style="text-align:center">
-        <h1 class="page-title">Дуэли</h1>
+        <h1 class="page-title">⚔️ Дуэли</h1>
         <p class="page-sub">Принимай и отправляй вызовы другим игрокам</p>
     </div>
 
@@ -13,16 +13,27 @@
         <h2>Входящие вызовы</h2>
         {% if incoming %}
             {% for duel in incoming %}
+            {% set chlr = users[duel.challenger_id] %}
             <div class="duel-row">
                 <div>
-                    <strong>{{ users[duel.challenger_id].username }}</strong> предлагает
+                    <strong>{{ chlr.username }}</strong>
+                    {% if chlr.is_online %}<span class="online-dot" title="Онлайн"></span>
+                    {% else %}<span class="offline-dot" title="Не онлайн"></span>{% endif %}
+                    предлагает
                     <strong>{{ duel.bet }} 🪙</strong>
                 </div>
-                <button class="btn btn-primary btn-sm accept-duel" data-id="{{ duel.id }}">Принять</button>
+                <div class="duel-row-actions">
+                    {% if chlr.is_online %}
+                    <button class="btn btn-primary btn-sm accept-duel" data-id="{{ duel.id }}">Принять</button>
+                    {% else %}
+                    <button class="btn btn-secondary btn-sm" disabled title="Игрок не онлайн">Не онлайн</button>
+                    {% endif %}
+                    <button class="btn btn-ghost btn-sm decline-duel" data-id="{{ duel.id }}">Отклонить</button>
+                </div>
             </div>
             {% endfor %}
         {% else %}
-            <p>У тебя нет входящих вызовов.</p>
+            <p class="duel-empty">У тебя нет входящих вызовов.</p>
         {% endif %}
     </div>
 
@@ -30,16 +41,22 @@
         <h2>Отправленные вызовы</h2>
         {% if outgoing %}
             {% for duel in outgoing %}
+            {% set tgt = users[duel.target_id] %}
             <div class="duel-row">
                 <div>
-                    Ты вызвал <strong>{{ users[duel.target_id].username }}</strong> на
-                    <strong>{{ duel.bet }} 🪙</strong>
+                    Ты вызвал <strong>{{ tgt.username }}</strong>
+                    {% if tgt.is_online %}<span class="online-dot" title="Онлайн"></span>
+                    {% else %}<span class="offline-dot" title="Не онлайн"></span>{% endif %}
+                    на <strong>{{ duel.bet }} 🪙</strong>
                 </div>
-                <span class="duel-state">Ожидает ответа</span>
+                <div class="duel-row-actions">
+                    <span class="duel-state">Ожидает ответа</span>
+                    <button class="btn btn-ghost btn-sm decline-duel" data-id="{{ duel.id }}">Отменить</button>
+                </div>
             </div>
             {% endfor %}
         {% else %}
-            <p>Ты не отправлял вызовы.</p>
+            <p class="duel-empty">Ты не отправлял вызовы.</p>
         {% endif %}
     </div>
 
@@ -55,12 +72,16 @@
                         Ты принял вызов <strong>{{ users[duel.challenger_id].username }}</strong>
                     {% endif %}
                     на <strong>{{ duel.bet }} 🪙</strong>
+                    {% if duel.mode == 'dice' %} · 🎲 Кости
+                    {% elif duel.mode == 'slots' %} · 🎰 Слоты
+                    {% else %} · ⏳ Выбор игры
+                    {% endif %}
                 </div>
-                <a href="{{ url_for('play_duel', duel_id=duel.id) }}" class="btn btn-secondary btn-sm">Открыть бой</a>
+                <a href="{{ url_for('play_duel', duel_id=duel.id) }}" class="btn btn-primary btn-sm">Открыть бой →</a>
             </div>
             {% endfor %}
         {% else %}
-            <p>Здесь будут дуэли, в которых оба уже готовы выбрать число.</p>
+            <p class="duel-empty">Здесь будут дуэли, в которых обе стороны согласны и идёт игра.</p>
         {% endif %}
     </div>
 
@@ -72,10 +93,12 @@
                 <div>
                     <strong>{{ users[duel.challenger_id].username }}</strong> vs
                     <strong>{{ users[duel.target_id].username }}</strong>
+                    {% if duel.mode == 'dice' %} · 🎲{% elif duel.mode == 'slots' %} · 🎰{% endif %}
+                    {% if duel.bet %} · {{ duel.bet }} 🪙{% endif %}
                 </div>
                 <span class="duel-state">
                     {% if duel.winner_id %}
-                        Победитель: {{ users[duel.winner_id].username }}
+                        Победитель: <strong>{{ users[duel.winner_id].username }}</strong>
                     {% else %}
                         Ничья
                     {% endif %}
@@ -83,7 +106,7 @@
             </div>
             {% endfor %}
         {% else %}
-            <p>Здесь появится история твоих дуэлей.</p>
+            <p class="duel-empty">Здесь появится история твоих дуэлей.</p>
         {% endif %}
     </div>
 </div>
@@ -91,27 +114,32 @@
 
 {% block scripts %}
 <script>
+var csrf = document.querySelector('meta[name="csrf-token"]').content;
+
+async function postWithCsrf(url) {
+    var fd = new FormData();
+    fd.append('csrf_token', csrf);
+    var res = await fetch(url, { method: 'POST', body: fd });
+    return res.json();
+}
+
 document.querySelectorAll('.accept-duel').forEach(function (btn) {
     btn.addEventListener('click', async function () {
-        var duelId = btn.dataset.id;
         btn.disabled = true;
-        var token = document.querySelector('meta[name="csrf-token"]').content;
-        var res = await fetch('/duel/accept/' + duelId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'csrf_token=' + encodeURIComponent(token),
-        });
-        var data = await res.json();
-        alert(data.error || data.message || 'Дуэль принята');
-        if (!data.error) {
-            if (data.redirect) {
-                window.location = data.redirect;
-            } else {
-                window.location.reload();
-            }
-        } else {
-            btn.disabled = false;
-        }
+        var data = await postWithCsrf('/duel/accept/' + btn.dataset.id);
+        if (data.error) { alert(data.error); btn.disabled = false; return; }
+        if (data.redirect) window.location = data.redirect;
+        else window.location.reload();
+    });
+});
+
+document.querySelectorAll('.decline-duel').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+        if (!confirm('Отклонить эту дуэль? Ставка вернётся отправителю.')) return;
+        btn.disabled = true;
+        var data = await postWithCsrf('/duel/decline/' + btn.dataset.id);
+        if (data.error) { alert(data.error); btn.disabled = false; return; }
+        window.location.reload();
     });
 });
 </script>

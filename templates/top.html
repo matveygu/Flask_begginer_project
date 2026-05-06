@@ -7,7 +7,7 @@
 
     <div class="page-header" style="text-align:center">
         <h1 class="page-title">🏆 Таблица лидеров</h1>
-        <p class="page-sub">Топ игроков по количеству монет</p>
+        <p class="page-sub">Топ игроков по количеству монет · 🟢 онлайн</p>
     </div>
 
     <div class="lb">
@@ -26,6 +26,7 @@
 
             <div class="lb-name" style="color: {{ user.name_color or '#fff' }}">
                 {{ user.username }}
+                {% if user.is_online %}<span class="online-dot" title="Онлайн"></span>{% endif %}
                 <span class="lb-level">Lv {{ user.xp // 100 + 1 }}</span>
             </div>
 
@@ -36,12 +37,16 @@
             </a>
 
             {% if user.id != current_user.id %}
-            <button class="lb-challenge" data-uid="{{ user.id }}" title="Вызвать в дуэль">⚔️</button>
-            <button class="lb-heart {% if user.id in liked_ids %}liked{% endif %}"
-                    data-uid="{{ user.id }}"
-                    title="Лайкнуть">
-                {% if user.id in liked_ids %}❤️{% else %}🤍{% endif %}
-            </button>
+                {% if user.is_online %}
+                <button class="lb-challenge" data-uid="{{ user.id }}" title="Вызвать в дуэль">⚔️</button>
+                {% else %}
+                <button class="lb-challenge offline" disabled title="Игрок не онлайн">⚔️</button>
+                {% endif %}
+                <button class="lb-heart {% if user.id in liked_ids %}liked{% endif %}"
+                        data-uid="{{ user.id }}"
+                        title="Лайкнуть">
+                    {% if user.id in liked_ids %}❤️{% else %}🤍{% endif %}
+                </button>
             {% else %}
             <span class="lb-heart-self" title="{{ likes[user.id] }} лайков">❤️</span>
             {% endif %}
@@ -70,10 +75,10 @@ document.querySelectorAll('.lb-heart').forEach(function (btn) {
     });
 });
 
-document.querySelectorAll('.lb-challenge').forEach(function (btn) {
+document.querySelectorAll('.lb-challenge:not(.offline)').forEach(function (btn) {
     btn.addEventListener('click', async function () {
         const uid = btn.dataset.uid;
-        const bet = parseInt(prompt('Ставка в монетах для дуэли', '50'));
+        const bet = parseInt(prompt('Ставка для дуэли best-of-3 (тип игры выберете после принятия)', '50'));
         if (!bet || bet <= 0) return;
         btn.disabled = true;
         const token = document.querySelector('meta[name="csrf-token"]').content;

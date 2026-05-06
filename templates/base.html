@@ -25,7 +25,10 @@
         <a href="{{ url_for('games') }}">Игры</a>
         <a href="{{ url_for('shop') }}">Магазин</a>
         <a href="{{ url_for('chat') }}">Чат</a>
-        <a href="{{ url_for('duels') }}">Дуэли</a>
+        <a href="{{ url_for('duels') }}" class="nav-with-badge">
+            Дуэли
+            <span class="nav-badge" id="nav-duel-badge" hidden>0</span>
+        </a>
         <a href="{{ url_for('profile') }}">Профиль</a>
         <a href="{{ url_for('top') }}">Топ</a>
         <a href="{{ url_for('logout') }}" class="nav-logout">Выйти</a>
@@ -116,6 +119,65 @@ function animateBalance(id, value) {
     animateNumber(el, current, value, 500);
 }
 </script>
+
+{% if current_user.is_authenticated %}
+<script>
+(function () {
+    var badge = document.getElementById('nav-duel-badge');
+
+    function getVisited() {
+        try { return JSON.parse(localStorage.getItem('duelVisited') || '[]'); }
+        catch (e) { return []; }
+    }
+    function markVisited(id) {
+        var arr = getVisited();
+        if (arr.indexOf(id) === -1) {
+            arr.push(id);
+            // Keep last 50 only
+            if (arr.length > 50) arr = arr.slice(-50);
+            localStorage.setItem('duelVisited', JSON.stringify(arr));
+        }
+    }
+
+    // If we're on a duel-play page, mark this duel as visited
+    var m = window.location.pathname.match(/^\/duel\/play\/(\d+)/);
+    if (m) markVisited(parseInt(m[1], 10));
+
+    async function refresh() {
+        try {
+            var res  = await fetch('/notifications');
+            if (!res.ok) return;
+            var data = await res.json();
+            var count = (data.incoming || 0) + (data.active || 0);
+            if (badge) {
+                if (count > 0) {
+                    badge.textContent = count;
+                    badge.hidden = false;
+                } else {
+                    badge.hidden = true;
+                }
+            }
+
+            // Auto-open: redirect to the first unvisited active duel
+            var onDuelPage = /^\/duel\/play\/\d+/.test(window.location.pathname);
+            if (!onDuelPage && Array.isArray(data.active_ids)) {
+                var visited = getVisited();
+                for (var i = 0; i < data.active_ids.length; i++) {
+                    var id = data.active_ids[i];
+                    if (visited.indexOf(id) === -1) {
+                        markVisited(id);
+                        window.location = '/duel/play/' + id;
+                        return;
+                    }
+                }
+            }
+        } catch (e) { /* ignore */ }
+    }
+    refresh();
+    setInterval(refresh, 4000);
+})();
+</script>
+{% endif %}
 
 {% block scripts %}{% endblock %}
 

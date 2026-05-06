@@ -17,7 +17,8 @@
       "Bash(python -c \"from flask_wtf.csrf import CSRFProtect; from dotenv import load_dotenv; print\\('OK'\\)\")",
       "Bash(python -c \"import secrets; print\\(secrets.token_hex\\(32\\)\\)\")",
       "Bash(python -c ' *)",
-      "Bash(python -c \"from app import app; print\\('OK'\\)\")"
+      "Bash(python -c \"from app import app; print\\('OK'\\)\")",
+      "Bash(python -c \"import app; print\\('OK'\\)\")"
     ]
   }
 }

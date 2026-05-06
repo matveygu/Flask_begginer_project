@@ -25,8 +25,34 @@ os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
 ALLOWED_EXT   = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 SLOT_SYMBOLS  = ['0_hourglass', '0_telephone', '0_diamond', '0_floppy', '0_seven']
 
+GEO_REGIONS = [
+    {'id': 1, 'name': 'Западная Европа', 'lat': 50, 'lon': 0},
+    {'id': 2, 'name': 'Восточная Европа', 'lat': 55, 'lon': 30},
+    {'id': 3, 'name': 'Северная Америка', 'lat': 45, 'lon': -100},
+    {'id': 4, 'name': 'Южная Америка', 'lat': -15, 'lon': -60},
+    {'id': 5, 'name': 'Северная Африка', 'lat': 25, 'lon': 10},
+    {'id': 6, 'name': 'Южная Африка', 'lat': -25, 'lon': 20},
+    {'id': 7, 'name': 'Западная Азия', 'lat': 35, 'lon': 45},
+    {'id': 8, 'name': 'Юго-Восточная Азия', 'lat': 10, 'lon': 110},
+    {'id': 9, 'name': 'Южная Азия', 'lat': 20, 'lon': 80},
+    {'id': 10, 'name': 'Австралия и Океания', 'lat': -25, 'lon': 135},
+]
+
+GEO_LOCATIONS = [
+    {'id': 1, 'name': 'Париж', 'hint': 'Эйфелева башня, круассаны и романтика.', 'lat': 48.8566, 'lon': 2.3522},
+    {'id': 2, 'name': 'Нью-Йорк', 'hint': 'Высотки Манхэттена, Центральный парк и Статуя Свободы.', 'lat': 40.7128, 'lon': -74.0060},
+    {'id': 3, 'name': 'Каир', 'hint': 'Пирамиды, Нил и древняя египетская история.', 'lat': 30.0444, 'lon': 31.2357},
+    {'id': 4, 'name': 'Сидней', 'hint': 'Оперный театр и длинный пляж Бонди.', 'lat': -33.8688, 'lon': 151.2093},
+    {'id': 5, 'name': 'Токио', 'hint': 'Неон, суши, метро и храмовые ворота.', 'lat': 35.6895, 'lon': 139.6917},
+    {'id': 6, 'name': 'Рио-де-Жанейро', 'hint': 'Статуя Христа-Искупителя и пляж Копакабана.', 'lat': -22.9068, 'lon': -43.1729},
+    {'id': 7, 'name': 'Москва', 'hint': 'Красная площадь, Кремль и купола собора Василия Блаженного.', 'lat': 55.7558, 'lon': 37.6173},
+    {'id': 8, 'name': 'Лондон', 'hint': 'Биг-Бен, Тауэрский мост и автобусные маршруты.', 'lat': 51.5074, 'lon': -0.1278},
+]
+
 DAILY_BONUS_BASE   = 50
 DAILY_BONUS_STEP   = 10
+ONLINE_WINDOW      = 90  # seconds — how long after last_seen a user is "online"
+DUEL_ROUNDS        = 3
 SHOP_CATEGORIES = {
     'avatar_frame': {'label': 'Рамки', 'description': 'Оформление вашего аватара в профиле.'},
     'profile_bg':   {'label': 'Фоны профиля', 'description': 'Статичные и анимированные фоны для карточки.'},
@@ -100,6 +126,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-change-me-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_FILE.replace(chr(92), '/')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['GOOGLE_MAPS_API_KEY'] = os.environ.get('GOOGLE_MAPS_API_KEY', '')
 # Disable automatic CSRF checking — we validate HTML forms explicitly below.
 # JSON API routes (/spin, /roll_dice, etc.) don't need it.
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False
@@ -126,10 +153,21 @@ class User(UserMixin, db.Model):
     xp               = db.Column(db.Integer, default=0)
     daily_streak     = db.Column(db.Integer, default=0)
     last_bonus_date  = db.Column(db.Date,    nullable=True)
+    last_seen        = db.Column(db.DateTime, nullable=True)
     avatar_frame     = db.Column(db.String(20), default='default')
     profile_bg       = db.Column(db.String(20), default='default')
     name_color       = db.Column(db.String(20), default='')
     purchases        = db.Column(db.Text, default='[]')
+
+    @property
+    def is_online(self):
+        if self.last_seen is None:
+            return False
+        now = datetime.now(timezone.utc)
+        last = self.last_seen
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        return (now - last) < timedelta(seconds=ONLINE_WINDOW)
 
     @property
     def purchased_items(self):
@@ -172,18 +210,39 @@ class ChatMessage(db.Model):
 
 
 class Duel(db.Model):
-    id              = db.Column(db.Integer, primary_key=True)
-    challenger_id   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    target_id       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    bet             = db.Column(db.Integer, nullable=False)
-    status          = db.Column(db.String(12), nullable=False, default='pending')
-    winner_id       = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    challenger_number = db.Column(db.Integer, nullable=True)
-    target_number     = db.Column(db.Integer, nullable=True)
-    dice_roll         = db.Column(db.Integer, nullable=True)
-    created_at      = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    accepted_at     = db.Column(db.DateTime, nullable=True)
-    resolved_at     = db.Column(db.DateTime, nullable=True)
+    id                      = db.Column(db.Integer, primary_key=True)
+    challenger_id           = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    target_id               = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    bet                     = db.Column(db.Integer, nullable=False)
+    status                  = db.Column(db.String(12), nullable=False, default='pending')
+    winner_id               = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    mode                    = db.Column(db.String(20), nullable=True)
+    location_id             = db.Column(db.Integer, nullable=True)
+    challenger_guess        = db.Column(db.Integer, nullable=True)
+    target_guess            = db.Column(db.Integer, nullable=True)
+    actual_roll             = db.Column(db.Integer, nullable=True)
+    challenger_score        = db.Column(db.Integer, nullable=True)
+    target_score            = db.Column(db.Integer, nullable=True)
+    challenger_symbols      = db.Column(db.Text,    nullable=True)
+    target_symbols          = db.Column(db.Text,    nullable=True)
+    current_round           = db.Column(db.Integer, default=1, nullable=False)
+    challenger_round_scores = db.Column(db.Text, default='[]')
+    target_round_scores     = db.Column(db.Text, default='[]')
+    challenger_wins         = db.Column(db.Integer, default=0, nullable=False)
+    target_wins             = db.Column(db.Integer, default=0, nullable=False)
+    created_at              = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    accepted_at             = db.Column(db.DateTime, nullable=True)
+    resolved_at             = db.Column(db.DateTime, nullable=True)
+
+    @property
+    def challenger_history(self):
+        try: return json.loads(self.challenger_round_scores or '[]')
+        except ValueError: return []
+
+    @property
+    def target_history(self):
+        try: return json.loads(self.target_round_scores or '[]')
+        except ValueError: return []
 
 
 def migrate_database():
@@ -200,6 +259,7 @@ def migrate_database():
             'xp': "INTEGER DEFAULT 0",
             'daily_streak': "INTEGER DEFAULT 0",
             'last_bonus_date': "DATE",
+            'last_seen': "DATETIME",
             'avatar_frame': "VARCHAR(20) DEFAULT 'default'",
             'profile_bg': "VARCHAR(20) DEFAULT 'default'",
             'name_color': "VARCHAR(20) DEFAULT ''",
@@ -214,9 +274,20 @@ def migrate_database():
             info = conn.execute(text('PRAGMA table_info(duel);'))
             duel_columns = {row[1] for row in info}
             duel_migrations = {
-                'challenger_number': 'INTEGER',
-                'target_number': 'INTEGER',
-                'dice_roll': 'INTEGER',
+                'mode': 'VARCHAR(20)',
+                'location_id': 'INTEGER',
+                'challenger_guess': 'INTEGER',
+                'target_guess': 'INTEGER',
+                'actual_roll': 'INTEGER',
+                'challenger_score': 'INTEGER',
+                'target_score': 'INTEGER',
+                'challenger_symbols': 'TEXT',
+                'target_symbols': 'TEXT',
+                'current_round': 'INTEGER DEFAULT 1',
+                'challenger_round_scores': "TEXT DEFAULT '[]'",
+                'target_round_scores': "TEXT DEFAULT '[]'",
+                'challenger_wins': 'INTEGER DEFAULT 0',
+                'target_wins': 'INTEGER DEFAULT 0',
             }
             for col, definition in duel_migrations.items():
                 if col not in duel_columns:
@@ -234,6 +305,23 @@ with app.app_context():
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+@app.before_request
+def _touch_last_seen():
+    """Heartbeat: update current_user.last_seen on every request (throttled)."""
+    if not current_user.is_authenticated:
+        return
+    try:
+        now = datetime.now(timezone.utc)
+        last = current_user.last_seen
+        if last is not None and last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if last is None or (now - last) > timedelta(seconds=20):
+            current_user.last_seen = now
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def allowed_file(filename):
@@ -341,6 +429,92 @@ def compute_user_stats(user):
     }
 
 
+def distance_km(lat1, lon1, lat2, lon2):
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    return R * c
+
+
+def get_geo_location(location_id):
+    for loc in GEO_LOCATIONS:
+        if loc['id'] == location_id:
+            return loc
+    return None
+
+
+def get_geo_region(region_id):
+    for region in GEO_REGIONS:
+        if region['id'] == region_id:
+            return region
+    return None
+
+app.jinja_env.globals.update(get_geo_region=get_geo_region)
+
+
+def finish_round(duel):
+    """Called when both players submitted score for current round.
+    Saves round to history, increments win counter, advances or resolves the duel."""
+    c = duel.challenger_score if duel.challenger_score is not None else 0
+    t = duel.target_score     if duel.target_score     is not None else 0
+
+    c_hist = duel.challenger_history
+    t_hist = duel.target_history
+    c_hist.append(c)
+    t_hist.append(t)
+    duel.challenger_round_scores = json.dumps(c_hist)
+    duel.target_round_scores     = json.dumps(t_hist)
+
+    if c > t:
+        duel.challenger_wins += 1
+    elif t > c:
+        duel.target_wins += 1
+    # tied round: nobody scores
+
+    if duel.current_round >= DUEL_ROUNDS:
+        return resolve_duel_final(duel)
+    # advance to next round
+    duel.current_round  += 1
+    duel.challenger_score   = None
+    duel.target_score       = None
+    duel.challenger_symbols = None
+    duel.target_symbols     = None
+    return None
+
+
+def resolve_duel_final(duel):
+    challenger = db.session.get(User, duel.challenger_id)
+    target     = db.session.get(User, duel.target_id)
+    if challenger is None or target is None:
+        return 'Ошибка участников'
+
+    cw, tw = duel.challenger_wins, duel.target_wins
+    if cw > tw:
+        challenger.coins += duel.bet * 2
+        duel.winner_id = challenger.id
+        record_game_event(challenger, 'duel', duel.bet,  'win')
+        record_game_event(target,     'duel', -duel.bet, 'lose')
+        message = f'Победил {challenger.username} ({cw}-{tw})'
+    elif tw > cw:
+        target.coins += duel.bet * 2
+        duel.winner_id = target.id
+        record_game_event(target,     'duel', duel.bet,  'win')
+        record_game_event(challenger, 'duel', -duel.bet, 'lose')
+        message = f'Победил {target.username} ({tw}-{cw})'
+    else:
+        challenger.coins += duel.bet
+        target.coins     += duel.bet
+        record_game_event(challenger, 'duel', 0, 'tie')
+        record_game_event(target,     'duel', 0, 'tie')
+        message = f'Ничья ({cw}-{tw}) — ставки возвращены'
+    duel.status = 'resolved'
+    duel.resolved_at = datetime.now(timezone.utc)
+    return message
+
+
 def record_game_event(user, game, amount, outcome):
     if game in ('slots', 'dice', 'duel'):
         user.xp += max(5, abs(amount) // 4)
@@ -357,34 +531,6 @@ def record_game_event(user, game, amount, outcome):
         outcome=outcome,
         amount=amount,
     ))
-
-def resolve_duel(duel, challenger, target):
-    duel.dice_roll = random.randint(1, 6)
-    diff_challenger = abs(duel.dice_roll - duel.challenger_number)
-    diff_target = abs(duel.dice_roll - duel.target_number)
-
-    if diff_challenger < diff_target:
-        challenger.coins += duel.bet * 2
-        duel.winner_id = challenger.id
-        record_game_event(challenger, 'duel', duel.bet, 'win')
-        record_game_event(target, 'duel', -duel.bet, 'lose')
-        message = 'Победил челленджер'
-    elif diff_target < diff_challenger:
-        target.coins += duel.bet * 2
-        duel.winner_id = target.id
-        record_game_event(target, 'duel', duel.bet, 'win')
-        record_game_event(challenger, 'duel', -duel.bet, 'lose')
-        message = 'Победил принявший вызов'
-    else:
-        challenger.coins += duel.bet
-        target.coins += duel.bet
-        record_game_event(challenger, 'duel', 0, 'tie')
-        record_game_event(target, 'duel', 0, 'tie')
-        message = 'Ничья — ставки возвращены'
-
-    duel.status = 'resolved'
-    duel.resolved_at = datetime.now(timezone.utc)
-    return message
 
 # ── PWA ───────────────────────────────────────────────────────
 
@@ -628,9 +774,19 @@ def challenge_user(user_id):
     target = db.session.get(User, user_id)
     if target is None:
         return jsonify({'error': 'Игрок не найден'}), 404
+    if not target.is_online:
+        return jsonify({'error': f'{target.username} сейчас не онлайн'}), 400
+
+    existing = Duel.query.filter(
+        Duel.status.in_(['pending', 'accepted']),
+        ((Duel.challenger_id == current_user.id) & (Duel.target_id == user_id)) |
+        ((Duel.challenger_id == user_id) & (Duel.target_id == current_user.id))
+    ).first()
+    if existing:
+        return jsonify({'error': 'У вас уже есть активная дуэль с этим игроком'}), 400
 
     current_user.coins -= bet
-    duel = Duel(challenger_id=current_user.id, target_id=user_id, bet=bet)
+    duel = Duel(challenger_id=current_user.id, target_id=user_id, bet=bet, mode=None)
     db.session.add(duel)
     db.session.commit()
     return jsonify({'ok': True, 'message': 'Вызов отправлен'})
@@ -649,6 +805,8 @@ def accept_duel(duel_id):
     challenger = db.session.get(User, duel.challenger_id)
     if challenger is None:
         return jsonify({'error': 'Игрок не найден'}), 404
+    if not challenger.is_online:
+        return jsonify({'error': f'{challenger.username} сейчас не онлайн — нельзя принять'}), 400
 
     current_user.coins -= duel.bet
     duel.accepted_at = datetime.now(timezone.utc)
@@ -656,12 +814,132 @@ def accept_duel(duel_id):
     db.session.commit()
     return jsonify({
         'ok': True,
-        'message': 'Дуэль принята. Открой страницу боя, чтобы выбрать число.',
+        'message': 'Дуэль принята. Выберите тип игры.',
         'redirect': url_for('play_duel', duel_id=duel.id),
     })
 
 
-@app.route('/duel/play/<int:duel_id>', methods=['GET', 'POST'])
+@app.route('/duel/decline/<int:duel_id>', methods=['POST'])
+@login_required
+def decline_duel(duel_id):
+    _require_form_csrf()
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or duel.status != 'pending':
+        return jsonify({'error': 'Дуэль не найдена'}), 404
+    if duel.target_id != current_user.id and duel.challenger_id != current_user.id:
+        return jsonify({'error': 'Нет доступа'}), 403
+
+    challenger = db.session.get(User, duel.challenger_id)
+    if challenger:
+        challenger.coins += duel.bet
+    duel.status = 'declined'
+    duel.resolved_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({'ok': True, 'message': 'Дуэль отклонена, ставка возвращена'})
+
+
+@app.route('/duel/<int:duel_id>/choose', methods=['POST'])
+@login_required
+def choose_duel_mode(duel_id):
+    _require_form_csrf()
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or duel.status != 'accepted':
+        return jsonify({'error': 'Дуэль не активна'}), 404
+    if current_user.id not in (duel.challenger_id, duel.target_id):
+        return jsonify({'error': 'Нет доступа'}), 403
+    if duel.mode is not None:
+        return jsonify({'error': 'Игра уже выбрана'}), 400
+
+    mode = request.form.get('mode', '').strip()
+    if mode not in ('dice', 'slots'):
+        return jsonify({'error': 'Выберите кости или слоты'}), 400
+
+    duel.mode = mode
+    db.session.commit()
+    return jsonify({'ok': True, 'mode': mode})
+
+
+@app.route('/duel/<int:duel_id>/play', methods=['POST'])
+@login_required
+def submit_duel_play(duel_id):
+    _require_form_csrf()
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or duel.status != 'accepted' or duel.mode is None:
+        return jsonify({'error': 'Дуэль недоступна'}), 404
+    if current_user.id not in (duel.challenger_id, duel.target_id):
+        return jsonify({'error': 'Нет доступа'}), 403
+
+    is_challenger = current_user.id == duel.challenger_id
+    if is_challenger and duel.challenger_score is not None:
+        return jsonify({'error': 'Вы уже сыграли'}), 400
+    if not is_challenger and duel.target_score is not None:
+        return jsonify({'error': 'Вы уже сыграли'}), 400
+
+    if duel.mode == 'dice':
+        score = random.randint(1, 6)
+        if is_challenger:
+            duel.challenger_score = score
+        else:
+            duel.target_score = score
+        result_payload = {'score': score, 'roll': score}
+    else:  # slots
+        data = request.get_json(force=True, silent=True) or {}
+        symbols = data.get('symbols')
+        if (not isinstance(symbols, list) or len(symbols) != 5 or
+                not all(isinstance(col, list) and len(col) == 3 and
+                        all(s in SLOT_SYMBOLS for s in col) for col in symbols)):
+            return jsonify({'error': 'Неверные символы'}), 400
+        score = calculate_slot_winnings(symbols, duel.bet)
+        symbols_json = json.dumps(symbols)
+        if is_challenger:
+            duel.challenger_score   = score
+            duel.challenger_symbols = symbols_json
+        else:
+            duel.target_score   = score
+            duel.target_symbols = symbols_json
+        result_payload = {'score': score, 'symbols': symbols}
+
+    round_done   = False
+    duel_done    = False
+    final        = None
+    round_result = None
+    if duel.challenger_score is not None and duel.target_score is not None:
+        c = duel.challenger_score
+        t = duel.target_score
+        round_no = duel.current_round
+        message  = finish_round(duel)
+        round_done   = True
+        round_winner = 'challenger' if c > t else 'target' if t > c else 'tie'
+        round_result = {
+            'round':            round_no,
+            'challenger_score': c,
+            'target_score':     t,
+            'winner':           round_winner,
+        }
+        if message is not None:
+            duel_done = True
+            final = {
+                'message':          message,
+                'winner_id':        duel.winner_id,
+                'is_winner':        duel.winner_id == current_user.id,
+                'tie':              duel.winner_id is None,
+                'challenger_wins':  duel.challenger_wins,
+                'target_wins':      duel.target_wins,
+            }
+
+    db.session.commit()
+    return jsonify({'ok': True, 'result': result_payload,
+                    'round_done':  round_done,
+                    'round_result': round_result,
+                    'done':        duel_done,
+                    'final':       final,
+                    'current_round': duel.current_round,
+                    'challenger_wins': duel.challenger_wins,
+                    'target_wins':     duel.target_wins,
+                    'new_balance': current_user.coins})
+
+
+@app.route('/duel/play/<int:duel_id>', methods=['GET'])
 @login_required
 def play_duel(duel_id):
     duel = db.session.get(Duel, duel_id)
@@ -670,37 +948,66 @@ def play_duel(duel_id):
         return redirect(url_for('duels'))
 
     challenger = db.session.get(User, duel.challenger_id)
-    target = db.session.get(User, duel.target_id)
+    target     = db.session.get(User, duel.target_id)
 
     if duel.status == 'pending':
         flash('Дуэль ещё не принята')
         return redirect(url_for('duels'))
 
-    if request.method == 'POST':
-        if duel.status == 'resolved':
-            return redirect(url_for('play_duel', duel_id=duel.id))
-
-        choice = request.form.get('choice', type=int)
-        if choice is None or choice < 1 or choice > 6:
-            flash('Выберите число от 1 до 6')
-            return redirect(url_for('play_duel', duel_id=duel.id))
-
-        if current_user.id == duel.challenger_id:
-            if duel.challenger_number is None:
-                duel.challenger_number = choice
-        else:
-            if duel.target_number is None:
-                duel.target_number = choice
-
-        if duel.challenger_number is not None and duel.target_number is not None:
-            message = resolve_duel(duel, challenger, target)
-            flash(message)
-        db.session.commit()
-        return redirect(url_for('play_duel', duel_id=duel.id))
+    is_challenger = current_user.id == duel.challenger_id
+    my_score      = duel.challenger_score if is_challenger else duel.target_score
+    opp_score     = duel.target_score     if is_challenger else duel.challenger_score
+    my_played     = my_score is not None
+    opp_played    = opp_score is not None
 
     return render_template('duel_play.html', duel=duel,
                            challenger=challenger, target=target,
+                           is_challenger=is_challenger,
+                           my_score=my_score,
+                           opp_score=opp_score,
+                           my_played=my_played,
+                           opp_played=opp_played,
                            current_user=current_user)
+
+
+@app.route('/duel/<int:duel_id>/state')
+@login_required
+def duel_state(duel_id):
+    duel = db.session.get(Duel, duel_id)
+    if duel is None or current_user.id not in (duel.challenger_id, duel.target_id):
+        return jsonify({'error': 'Не найдено'}), 404
+    is_challenger = current_user.id == duel.challenger_id
+    return jsonify({
+        'status':           duel.status,
+        'mode':             duel.mode,
+        'current_round':    duel.current_round,
+        'total_rounds':     DUEL_ROUNDS,
+        'challenger_wins':  duel.challenger_wins,
+        'target_wins':      duel.target_wins,
+        'challenger_history': duel.challenger_history,
+        'target_history':     duel.target_history,
+        'my_score':         duel.challenger_score if is_challenger else duel.target_score,
+        'opp_score':        duel.target_score     if is_challenger else duel.challenger_score,
+        'my_played':        (duel.challenger_score if is_challenger else duel.target_score) is not None,
+        'opp_played':       (duel.target_score     if is_challenger else duel.challenger_score) is not None,
+        'winner_id':        duel.winner_id,
+        'is_winner':        duel.winner_id == current_user.id if duel.winner_id else None,
+    })
+
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    incoming = Duel.query.filter_by(target_id=current_user.id, status='pending').count()
+    active_q = Duel.query.filter(
+        Duel.status == 'accepted',
+        (Duel.challenger_id == current_user.id) | (Duel.target_id == current_user.id)
+    ).order_by(Duel.accepted_at.desc()).all()
+    return jsonify({
+        'incoming':    incoming,
+        'active':      len(active_q),
+        'active_ids':  [d.id for d in active_q],
+    })
 
 
 @app.route('/games')

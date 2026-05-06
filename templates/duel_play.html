@@ -1,103 +1,228 @@
 {% extends 'base.html' %}
 
-{% block title %}Дуэль — {{ challenger.username }} vs {{ target.username }}{% endblock %}
+{% block title %}Дуэль · {{ challenger.username }} vs {{ target.username }}{% endblock %}
 
 {% block content %}
-<div class="page">
-    <div class="page-header" style="text-align:center">
-        <h1 class="page-title">Дуэль</h1>
-        <p class="page-sub">Выберите число от 1 до 6 и запустите бросок кубика.</p>
-    </div>
+<div class="page duel-page">
 
-    <div class="card duel-card">
-        <div class="duel-row">
-            <div>
-                <strong>{{ challenger.username }}</strong> vs <strong>{{ target.username }}</strong>
-            </div>
-            <div>Ставка: <strong>{{ duel.bet }} 🪙</strong></div>
-        </div>
+    <a href="{{ url_for('duels') }}" class="duel-back">← Назад к дуэлям</a>
 
-        {% if duel.status == 'resolved' %}
-        <div class="duel-result">
-            <div class="duel-result-row">
-                <strong>Кубик</strong>
-                <div id="dice-result" class="dice-face">{{ duel.dice_roll or '🎲' }}</div>
-            </div>
-            <div class="duel-result-row">
-                <span>{{ challenger.username }} выбрал: <strong>{{ duel.challenger_number }}</strong></span>
-                <span>{{ target.username }} выбрал: <strong>{{ duel.target_number }}</strong></span>
-            </div>
-            <div class="duel-result-row">
-                {% if duel.winner_id == challenger.id %}
-                    Победитель: <strong>{{ challenger.username }}</strong>
-                {% elif duel.winner_id == target.id %}
-                    Победитель: <strong>{{ target.username }}</strong>
-                {% else %}
-                    Ничья — ставки возвращены
-                {% endif %}
-            </div>
-        </div>
-        {% else %}
-        <div class="duel-status">
-            {% if current_user.id == duel.challenger_id %}
-                {% if duel.challenger_number %}
-                    Ты выбрал число <strong>{{ duel.challenger_number }}</strong>.
-                {% else %}
-                    Выбери число, чтобы начать.
-                {% endif %}
-            {% else %}
-                {% if duel.target_number %}
-                    Ты выбрал число <strong>{{ duel.target_number }}</strong>.
-                {% else %}
-                    Выбери число, чтобы начать.
-                {% endif %}
+    <div class="duel-arena card-glow"
+         data-duel="{{ duel.id }}"
+         data-mode="{{ duel.mode or '' }}"
+         data-status="{{ duel.status }}"
+         data-iam-challenger="{{ '1' if is_challenger else '0' }}"
+         data-current-round="{{ duel.current_round }}"
+         data-total-rounds="3">
+
+        <div class="duel-banner">
+            <span class="duel-banner-tag">⚔️ Best of 3</span>
+            <span class="duel-banner-bet">Ставка: <strong>{{ duel.bet }} 🪙</strong></span>
+            <span class="duel-banner-mode">
+                {% if duel.mode == 'dice' %}🎲 Кости
+                {% elif duel.mode == 'slots' %}🎰 Слоты
+                {% else %}⏳ Выбор игры{% endif %}
+            </span>
+            {% if duel.status == 'accepted' and duel.mode %}
+            <span class="duel-banner-round" id="round-indicator">
+                Раунд <strong>{{ duel.current_round }}</strong>/3
+            </span>
             {% endif %}
         </div>
 
-        <div class="duel-picks">
-            <div><strong>{{ challenger.username }}</strong>: {% if duel.challenger_number %}выбрал {{ duel.challenger_number }}{% else %}ожидает{% endif %}</div>
-            <div><strong>{{ target.username }}</strong>: {% if duel.target_number %}выбрал {{ duel.target_number }}{% else %}ожидает{% endif %}</div>
-        </div>
-
-        {% if (current_user.id == duel.challenger_id and not duel.challenger_number) or
-              (current_user.id == duel.target_id and not duel.target_number) %}
-        <form id="duel-choice-form" method="POST" class="duel-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="duel-options">
-                {% for n in range(1, 7) %}
-                <label class="duel-option">
-                    <input type="radio" name="choice" value="{{ n }}" required>
-                    {{ n }}
-                </label>
-                {% endfor %}
+        <div class="duel-stage">
+            <div class="duel-fighter {% if duel.winner_id == challenger.id %}is-winner{% endif %} {% if duel.challenger_score is not none %}has-played{% endif %}" id="fighter-c">
+                <div class="duel-fighter-avatar {% if challenger.avatar_frame != 'default' %}frame-{{ challenger.avatar_frame }}{% endif %}">
+                    <img src="{{ url_for('static', filename='images/uploads/' + challenger.photo) }}"
+                         onerror="this.src='{{ url_for('static', filename='images/uploads/default.jpg') }}'"
+                         alt="{{ challenger.username }}">
+                </div>
+                <div class="duel-fighter-name" style="color: {{ challenger.name_color or '#fff' }}">
+                    {{ challenger.username }}
+                    {% if challenger.is_online %}<span class="online-dot" title="Онлайн"></span>{% endif %}
+                </div>
+                <div class="duel-fighter-meta">
+                    <span class="duel-fighter-lvl">Lv {{ challenger.xp // 100 + 1 }}</span>
+                    <span class="duel-fighter-role">челленджер</span>
+                </div>
+                <div class="round-wins" id="wins-c">{{ duel.challenger_wins }}</div>
+                <div class="round-wins-label">побед в раундах</div>
+                <div class="duel-fighter-status" id="status-challenger">
+                    {% if duel.challenger_score is not none %}✓ ход сделан{% else %}ждёт хода{% endif %}
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary btn-full">Готово</button>
-        </form>
-        {% else %}
-        <div class="duel-waiting">
-            Ожидание соперника... Если оба выбрали, результаты появятся автоматически.
+
+            <div class="duel-vs-pill">
+                <div class="duel-vs-text">VS</div>
+                <div class="duel-vs-pulse"></div>
+            </div>
+
+            <div class="duel-fighter {% if duel.winner_id == target.id %}is-winner{% endif %} {% if duel.target_score is not none %}has-played{% endif %}" id="fighter-t">
+                <div class="duel-fighter-avatar {% if target.avatar_frame != 'default' %}frame-{{ target.avatar_frame }}{% endif %}">
+                    <img src="{{ url_for('static', filename='images/uploads/' + target.photo) }}"
+                         onerror="this.src='{{ url_for('static', filename='images/uploads/default.jpg') }}'"
+                         alt="{{ target.username }}">
+                </div>
+                <div class="duel-fighter-name" style="color: {{ target.name_color or '#fff' }}">
+                    {{ target.username }}
+                    {% if target.is_online %}<span class="online-dot" title="Онлайн"></span>{% endif %}
+                </div>
+                <div class="duel-fighter-meta">
+                    <span class="duel-fighter-lvl">Lv {{ target.xp // 100 + 1 }}</span>
+                    <span class="duel-fighter-role">соперник</span>
+                </div>
+                <div class="round-wins" id="wins-t">{{ duel.target_wins }}</div>
+                <div class="round-wins-label">побед в раундах</div>
+                <div class="duel-fighter-status" id="status-target">
+                    {% if duel.target_score is not none %}✓ ход сделан{% else %}ждёт хода{% endif %}
+                </div>
+            </div>
         </div>
-        {% endif %}
+
+        {% if duel.status == 'accepted' and duel.mode and (duel.challenger_history or duel.target_history) %}
+        <div class="rounds-history" id="rounds-history">
+            {% for i in range(3) %}
+            <div class="round-pill {% if i < duel.current_round - 1 or duel.status == 'resolved' %}done{% elif i == duel.current_round - 1 %}active{% endif %}">
+                <div class="round-pill-label">Раунд {{ i + 1 }}</div>
+                <div class="round-pill-scores">
+                    {% if i < duel.challenger_history|length %}
+                        <span class="rp-c {% if duel.challenger_history[i] > duel.target_history[i] %}rp-win{% elif duel.challenger_history[i] < duel.target_history[i] %}rp-lose{% endif %}">
+                            {{ duel.challenger_history[i] }}
+                        </span>
+                        <span class="rp-vs">vs</span>
+                        <span class="rp-t {% if duel.target_history[i] > duel.challenger_history[i] %}rp-win{% elif duel.target_history[i] < duel.challenger_history[i] %}rp-lose{% endif %}">
+                            {{ duel.target_history[i] }}
+                        </span>
+                    {% else %}
+                        <span class="rp-empty">—</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
         {% endif %}
 
-        <div class="duel-note" style="margin-top:16px">
-            После выбора обоих чисел система бросит кубик и сравнит расстояние до вашего числа.
+        {# ── Mode pick ── #}
+        {% if duel.status == 'accepted' and duel.mode is none %}
+        <div class="duel-section duel-mode-pick">
+            <div class="duel-section-title">Выберите тип боя</div>
+            <div class="duel-section-sub">Серия из 3 раундов · кто победит в большем числе раундов — забирает банк</div>
+            <div class="duel-mode-cards">
+                <button type="button" class="duel-mode-card" data-mode="dice">
+                    <div class="duel-mode-icon">🎲</div>
+                    <div class="duel-mode-label">Кости</div>
+                    <div class="duel-mode-hint">3 броска · выше = победа в раунде</div>
+                </button>
+                <button type="button" class="duel-mode-card" data-mode="slots">
+                    <div class="duel-mode-icon">🎰</div>
+                    <div class="duel-mode-label">Слоты</div>
+                    <div class="duel-mode-hint">3 спина · больший выигрыш = победа в раунде</div>
+                </button>
+            </div>
         </div>
+        {% endif %}
+
+        {# ── Dice play ── #}
+        {% if duel.status == 'accepted' and duel.mode == 'dice' %}
+        <div class="duel-section duel-play-zone" id="dice-zone">
+            <div class="duel-section-title" id="dice-title">🎲 Раунд {{ duel.current_round }}/3</div>
+            <div class="duel-dice-3d" id="duel-dice-face">
+                <div class="dice-side dice-side-front">?</div>
+            </div>
+            <div id="dice-control">
+                {% if duel.challenger_score is none and is_challenger or duel.target_score is none and not is_challenger %}
+                <button type="button" class="btn btn-primary btn-lg duel-action-btn" id="dice-roll-btn">
+                    Бросить
+                </button>
+                {% else %}
+                <div class="duel-wait-line" id="dice-wait-text">⏳ Ожидаем ход соперника...</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Slots play ── #}
+        {% if duel.status == 'accepted' and duel.mode == 'slots' %}
+        <div class="duel-section duel-play-zone" id="slots-zone">
+            <div class="duel-section-title" id="slots-title">🎰 Раунд {{ duel.current_round }}/3</div>
+            <div id="slots-control">
+                {% if duel.challenger_score is none and is_challenger or duel.target_score is none and not is_challenger %}
+                <div class="duel-section-sub">Чем выше выигрыш — тем больше шанс взять раунд</div>
+                <div class="slot-machine duel-slot-machine">
+                    {% for _ in range(5) %}
+                    <div class="c-column">
+                        <div class="column"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-primary btn-lg duel-action-btn" id="slots-spin-btn">
+                    ▶ Вращать
+                </button>
+                <div class="duel-slot-score">
+                    Очки: <span id="slots-score">0</span>
+                </div>
+                {% else %}
+                <div class="duel-wait-line" id="slots-wait-text">⏳ Ожидаем ход соперника...</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ── Round transition overlay (hidden, shown via JS) ── #}
+        <div class="round-overlay" id="round-overlay" hidden>
+            <div class="round-overlay-content">
+                <div class="round-overlay-title" id="ro-title">Раунд завершён</div>
+                <div class="round-overlay-scores" id="ro-scores"></div>
+                <div class="round-overlay-msg" id="ro-msg"></div>
+            </div>
+        </div>
+
+        {# ── Resolved ── #}
+        {% if duel.status == 'resolved' %}
+        <div class="duel-section duel-result-zone">
+            {% if duel.winner_id == current_user.id %}
+            <div class="duel-result-banner win">
+                <div class="duel-result-icon">🏆</div>
+                <div class="duel-result-title">Победа!</div>
+                <div class="duel-result-sub">+{{ duel.bet * 2 }} 🪙 на счёт · {{ duel.challenger_wins if duel.challenger_id == current_user.id else duel.target_wins }}-{{ duel.target_wins if duel.challenger_id == current_user.id else duel.challenger_wins }} в раундах</div>
+            </div>
+            {% elif duel.winner_id is none %}
+            <div class="duel-result-banner tie">
+                <div class="duel-result-icon">🤝</div>
+                <div class="duel-result-title">Ничья</div>
+                <div class="duel-result-sub">{{ duel.challenger_wins }}-{{ duel.target_wins }} · ставка возвращена</div>
+            </div>
+            {% else %}
+            <div class="duel-result-banner lose">
+                <div class="duel-result-icon">💀</div>
+                <div class="duel-result-title">Поражение</div>
+                <div class="duel-result-sub">{{ duel.target_wins if duel.challenger_id == current_user.id else duel.challenger_wins }}-{{ duel.challenger_wins if duel.challenger_id == current_user.id else duel.target_wins }} в раундах</div>
+            </div>
+            {% endif %}
+            <div class="duel-result-actions">
+                <a href="{{ url_for('duels') }}" class="btn btn-secondary">← К дуэлям</a>
+                <a href="{{ url_for('top') }}" class="btn btn-ghost">Лидерборд →</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if duel.status == 'declined' %}
+        <div class="duel-section duel-result-zone">
+            <div class="duel-result-banner tie">
+                <div class="duel-result-icon">🚫</div>
+                <div class="duel-result-title">Дуэль отклонена</div>
+                <div class="duel-result-sub">Ставка возвращена</div>
+            </div>
+            <div class="duel-result-actions">
+                <a href="{{ url_for('duels') }}" class="btn btn-secondary">← К дуэлям</a>
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-const form = document.getElementById('duel-choice-form');
-if (form) {
-    form.addEventListener('submit', function () {
-        const resultBox = document.getElementById('dice-result');
-        if (resultBox) {
-            resultBox.textContent = '🎲';
-            resultBox.classList.add('rolling');
-        }
-    });
-}
-</script>
+<script src="{{ url_for('static', filename='js/duel.js', v=4) }}"></script>
 {% endblock %}
